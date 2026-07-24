@@ -17,8 +17,8 @@ return new class extends Migration
                 $table->string('email')->unique();
                 $table->string('phone')->nullable();
                 $table->text('address')->nullable();
-                $table->foreignId('class_id')->nullable()->constrained()->nullOnDelete();
-                $table->foreignId('course_id')->nullable()->constrained()->nullOnDelete();
+                $table->foreignId('class_id')->nullable(); // NO foreign key constraint
+                $table->foreignId('course_id')->nullable(); // NO foreign key constraint
                 $table->enum('status', ['active', 'inactive', 'graduated', 'suspended', 'expelled'])->default('active');
                 $table->string('registration_number')->nullable()->unique();
                 $table->timestamps();

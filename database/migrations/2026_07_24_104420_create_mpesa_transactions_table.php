@@ -6,38 +6,35 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
-        Schema::create('mpesa_transactions', function (Blueprint $table) {
-            $table->id();
-            $table->string('receipt_no')->unique();
-            $table->foreignId('student_id')->constrained()->onDelete('cascade');
-            $table->string('phone_number');
-            $table->decimal('amount', 10, 2);
-            $table->enum('status', ['Completed', 'Pending', 'Failed'])->default('Pending');
-            $table->string('mpesa_receipt')->nullable();
-            $table->timestamp('transaction_date')->nullable();
-            
-            // Optional fields for M-Pesa API integration
-            $table->string('checkout_request_id')->nullable()->index();
-            $table->string('merchant_request_id')->nullable()->index();
-            $table->string('result_code')->nullable();
-            $table->text('result_desc')->nullable();
-            
-            $table->timestamps();
-            
-            // Indexes for better performance
-            $table->index(['status', 'transaction_date']);
-            $table->index(['student_id', 'status']);
-        });
+        if (!Schema::hasTable('mpesa_transactions')) {
+            Schema::create('mpesa_transactions', function (Blueprint $table) {
+                $table->id();
+                $table->foreignId('student_id'); // NO foreign key constraint here
+                $table->string('transaction_code')->unique();
+                $table->string('checkout_request_id')->nullable();
+                $table->string('result_code')->nullable();
+                $table->string('result_desc')->nullable();
+                $table->decimal('amount', 10, 2);
+                $table->string('phone_number')->nullable();
+                $table->string('account_reference')->nullable();
+                $table->string('mpesa_receipt_number')->nullable();
+                $table->json('request_data')->nullable();
+                $table->json('response_data')->nullable();
+                $table->string('status')->default('pending');
+                $table->timestamp('completed_at')->nullable();
+                $table->timestamps();
+                
+                // Indexes
+                $table->index('student_id');
+                $table->index('transaction_code');
+                $table->index('status');
+                $table->index('account_reference');
+            });
+        }
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('mpesa_transactions');
