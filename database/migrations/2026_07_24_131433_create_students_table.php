@@ -23,7 +23,7 @@ return new class extends Migration
                 $table->string('registration_number')->nullable()->unique();
                 $table->timestamps();
                 
-                // Indexes for better performance
+                // Indexes
                 $table->index('admission_number');
                 $table->index('email');
                 $table->index('class_id');

@@ -11,7 +11,7 @@ return new class extends Migration
         if (!Schema::hasTable('fees')) {
             Schema::create('fees', function (Blueprint $table) {
                 $table->id();
-                $table->foreignId('student_id')->constrained()->onDelete('cascade');
+                $table->foreignId('student_id');
                 $table->decimal('amount', 10, 2);
                 $table->date('payment_date')->nullable();
                 $table->date('due_date');
@@ -35,6 +35,11 @@ return new class extends Migration
                 $table->timestamp('completed_at')->nullable();
                 
                 $table->timestamps();
+                
+                // Add foreign key only if students table exists
+                if (Schema::hasTable('students')) {
+                    $table->foreign('student_id')->references('id')->on('students')->onDelete('cascade');
+                }
                 
                 // Indexes
                 $table->index('student_id');
