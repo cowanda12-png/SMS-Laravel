@@ -2,10 +2,8 @@
 
 namespace Database\Seeders;
 
-use App\Models\Course;
-use App\Models\Students;
-use App\Models\Fee;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
 class RenderDatabaseSeeder extends Seeder
@@ -19,105 +17,113 @@ class RenderDatabaseSeeder extends Seeder
         
         $courses = [
             [
-                'name' => 'Computer Science',
+                'course_name' => 'Computer Science',
                 'code' => 'CS101',
                 'description' => 'Bachelor of Science in Computer Science - Programming, Algorithms, and Software Development',
-                'duration' => '4 years',
-                'fee' => 55000.00,
+                'credits' => 120,
+                'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
             ],
             [
-                'name' => 'Business Administration',
+                'course_name' => 'Business Administration',
                 'code' => 'BA101',
                 'description' => 'Bachelor of Business Administration - Management, Marketing, and Finance',
-                'duration' => '4 years',
-                'fee' => 45000.00,
+                'credits' => 120,
+                'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
             ],
             [
-                'name' => 'Information Technology',
+                'course_name' => 'Information Technology',
                 'code' => 'IT101',
                 'description' => 'Bachelor of Information Technology - Networks, Security, and Systems',
-                'duration' => '4 years',
-                'fee' => 48000.00,
+                'credits' => 120,
+                'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
             ],
             [
-                'name' => 'Accounting',
+                'course_name' => 'Accounting',
                 'code' => 'ACC101',
                 'description' => 'Bachelor of Accounting - Financial Reporting, Audit, and Taxation',
-                'duration' => '4 years',
-                'fee' => 42000.00,
+                'credits' => 120,
+                'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
             ],
             [
-                'name' => 'Civil Engineering',
+                'course_name' => 'Civil Engineering',
                 'code' => 'ENG101',
                 'description' => 'Bachelor of Civil Engineering - Structures, Construction, and Infrastructure',
-                'duration' => '5 years',
-                'fee' => 58000.00,
+                'credits' => 150,
+                'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
             ],
             [
-                'name' => 'Medicine',
+                'course_name' => 'Medicine',
                 'code' => 'MED101',
                 'description' => 'Bachelor of Medicine and Surgery - Clinical Practice and Healthcare',
-                'duration' => '6 years',
-                'fee' => 65000.00,
+                'credits' => 180,
+                'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
             ],
             [
-                'name' => 'Law',
+                'course_name' => 'Law',
                 'code' => 'LAW101',
                 'description' => 'Bachelor of Laws - Legal Studies, Advocacy, and Jurisprudence',
-                'duration' => '5 years',
-                'fee' => 52000.00,
+                'credits' => 150,
+                'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
             ],
             [
-                'name' => 'Education',
+                'course_name' => 'Education',
                 'code' => 'EDU101',
                 'description' => 'Bachelor of Education - Teaching, Curriculum, and Educational Psychology',
-                'duration' => '4 years',
-                'fee' => 38000.00,
+                'credits' => 120,
+                'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
             ],
             [
-                'name' => 'Nursing',
+                'course_name' => 'Nursing',
                 'code' => 'NUR101',
                 'description' => 'Bachelor of Nursing - Patient Care, Health Assessment, and Clinical Practice',
-                'duration' => '4 years',
-                'fee' => 48000.00,
+                'credits' => 120,
+                'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
             ],
             [
-                'name' => 'Architecture',
+                'course_name' => 'Architecture',
                 'code' => 'ARC101',
                 'description' => 'Bachelor of Architecture - Design, Planning, and Building Construction',
-                'duration' => '5 years',
-                'fee' => 54000.00,
+                'credits' => 150,
+                'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
             ],
         ];
 
-        foreach ($courses as $courseData) {
-            Course::updateOrCreate(
-                ['code' => $courseData['code']],
-                $courseData
-            );
+        foreach ($courses as $course) {
+            $exists = DB::table('courses')->where('code', $course['code'])->exists();
+            if (!$exists) {
+                DB::table('courses')->insert($course);
+            }
         }
         
         $this->command->info('✅ ' . count($courses) . ' courses seeded successfully!');
+
+        // ========== GET COURSE IDs ==========
+        $courseIds = DB::table('courses')->pluck('id')->toArray();
+        
+        if (empty($courseIds)) {
+            $this->command->error('❌ No courses found. Please check your courses table.');
+            return;
+        }
 
         // ========== SEED STUDENTS (10 records) ==========
         $this->command->info('👨‍🎓 Seeding students...');
@@ -130,9 +136,12 @@ class RenderDatabaseSeeder extends Seeder
                 'email' => 'collins.owanda@example.com',
                 'phone' => '+254712345678',
                 'address' => '123 Unity Road, Nairobi, Kenya',
-                'course_id' => 1,
+                'class_id' => null,
+                'course_id' => $courseIds[0] ?? 1,
                 'status' => 'active',
                 'registration_number' => 'REG-2024-001',
+                'created_at' => now(),
+                'updated_at' => now(),
             ],
             [
                 'admission_number' => 'ADM-2024-002',
@@ -141,9 +150,12 @@ class RenderDatabaseSeeder extends Seeder
                 'email' => 'grace.mwangi@example.com',
                 'phone' => '+254723456789',
                 'address' => '456 Peace Avenue, Mombasa, Kenya',
-                'course_id' => 2,
+                'class_id' => null,
+                'course_id' => $courseIds[1] ?? 2,
                 'status' => 'active',
                 'registration_number' => 'REG-2024-002',
+                'created_at' => now(),
+                'updated_at' => now(),
             ],
             [
                 'admission_number' => 'ADM-2024-003',
@@ -152,9 +164,12 @@ class RenderDatabaseSeeder extends Seeder
                 'email' => 'peter.ochieng@example.com',
                 'phone' => '+254734567890',
                 'address' => '789 Freedom Street, Kisumu, Kenya',
-                'course_id' => 3,
+                'class_id' => null,
+                'course_id' => $courseIds[2] ?? 3,
                 'status' => 'active',
                 'registration_number' => 'REG-2024-003',
+                'created_at' => now(),
+                'updated_at' => now(),
             ],
             [
                 'admission_number' => 'ADM-2024-004',
@@ -163,9 +178,12 @@ class RenderDatabaseSeeder extends Seeder
                 'email' => 'sarah.kariuki@example.com',
                 'phone' => '+254745678901',
                 'address' => '321 Hope Lane, Nakuru, Kenya',
-                'course_id' => 4,
+                'class_id' => null,
+                'course_id' => $courseIds[3] ?? 4,
                 'status' => 'active',
                 'registration_number' => 'REG-2024-004',
+                'created_at' => now(),
+                'updated_at' => now(),
             ],
             [
                 'admission_number' => 'ADM-2024-005',
@@ -174,9 +192,12 @@ class RenderDatabaseSeeder extends Seeder
                 'email' => 'james.odhiambo@example.com',
                 'phone' => '+254756789012',
                 'address' => '654 Vision Road, Eldoret, Kenya',
-                'course_id' => 5,
+                'class_id' => null,
+                'course_id' => $courseIds[4] ?? 5,
                 'status' => 'active',
                 'registration_number' => 'REG-2024-005',
+                'created_at' => now(),
+                'updated_at' => now(),
             ],
             [
                 'admission_number' => 'ADM-2024-006',
@@ -185,9 +206,12 @@ class RenderDatabaseSeeder extends Seeder
                 'email' => 'mary.akinyi@example.com',
                 'phone' => '+254767890123',
                 'address' => '987 Unity Drive, Thika, Kenya',
-                'course_id' => 6,
+                'class_id' => null,
+                'course_id' => $courseIds[5] ?? 6,
                 'status' => 'active',
                 'registration_number' => 'REG-2024-006',
+                'created_at' => now(),
+                'updated_at' => now(),
             ],
             [
                 'admission_number' => 'ADM-2024-007',
@@ -196,9 +220,12 @@ class RenderDatabaseSeeder extends Seeder
                 'email' => 'david.mutua@example.com',
                 'phone' => '+254778901234',
                 'address' => '159 Progress Street, Malindi, Kenya',
-                'course_id' => 7,
+                'class_id' => null,
+                'course_id' => $courseIds[6] ?? 7,
                 'status' => 'active',
                 'registration_number' => 'REG-2024-007',
+                'created_at' => now(),
+                'updated_at' => now(),
             ],
             [
                 'admission_number' => 'ADM-2024-008',
@@ -207,9 +234,12 @@ class RenderDatabaseSeeder extends Seeder
                 'email' => 'lucy.kamau@example.com',
                 'phone' => '+254789012345',
                 'address' => '753 Success Avenue, Meru, Kenya',
-                'course_id' => 8,
+                'class_id' => null,
+                'course_id' => $courseIds[7] ?? 8,
                 'status' => 'active',
                 'registration_number' => 'REG-2024-008',
+                'created_at' => now(),
+                'updated_at' => now(),
             ],
             [
                 'admission_number' => 'ADM-2024-009',
@@ -218,9 +248,12 @@ class RenderDatabaseSeeder extends Seeder
                 'email' => 'michael.omondi@example.com',
                 'phone' => '+254790123456',
                 'address' => '951 Innovation Road, Nyeri, Kenya',
-                'course_id' => 9,
+                'class_id' => null,
+                'course_id' => $courseIds[8] ?? 9,
                 'status' => 'active',
                 'registration_number' => 'REG-2024-009',
+                'created_at' => now(),
+                'updated_at' => now(),
             ],
             [
                 'admission_number' => 'ADM-2024-010',
@@ -229,17 +262,20 @@ class RenderDatabaseSeeder extends Seeder
                 'email' => 'esther.wanjiru@example.com',
                 'phone' => '+254701234567',
                 'address' => '357 Resilience Lane, Kitale, Kenya',
-                'course_id' => 10,
+                'class_id' => null,
+                'course_id' => $courseIds[9] ?? 10,
                 'status' => 'active',
                 'registration_number' => 'REG-2024-010',
+                'created_at' => now(),
+                'updated_at' => now(),
             ],
         ];
 
-        foreach ($students as $studentData) {
-            Students::updateOrCreate(
-                ['admission_number' => $studentData['admission_number']],
-                $studentData
-            );
+        foreach ($students as $student) {
+            $exists = DB::table('students')->where('admission_number', $student['admission_number'])->exists();
+            if (!$exists) {
+                DB::table('students')->insert($student);
+            }
         }
 
         $this->command->info('✅ ' . count($students) . ' students seeded successfully!');
@@ -247,86 +283,109 @@ class RenderDatabaseSeeder extends Seeder
         // ========== SEED FEES (10 records) ==========
         $this->command->info('💰 Seeding fees...');
 
-        $students = Students::all();
+        $studentIds = DB::table('students')->pluck('id')->toArray();
         
-        if ($students->count() < 10) {
-            $this->command->warn('⚠️ Less than 10 students found. Creating fees for available students.');
+        if (empty($studentIds)) {
+            $this->command->warn('⚠️ No students found. Skipping fees.');
+            return;
         }
 
-        $feeStatuses = ['paid', 'pending', 'overdue'];
+        $feeStatuses = ['paid', 'unpaid', 'partial'];
         $feeTypes = ['Tuition', 'Registration', 'Examination', 'Library', 'Sports', 'Laboratory'];
         $paymentMethods = ['Cash', 'Bank Transfer', 'Cheque', 'M-Pesa', 'Credit Card'];
 
         $feeCounter = 0;
+        $targetFees = 10;
         
-        foreach ($students as $student) {
-            // Create 1-2 fees per student
-            $numFees = rand(1, 2);
+        // Create fees for students
+        foreach ($studentIds as $studentId) {
+            if ($feeCounter >= $targetFees) break;
             
-            for ($i = 0; $i < $numFees && $feeCounter < 10; $i++) {
-                $status = $feeStatuses[array_rand($feeStatuses)];
-                $amount = rand(5000, 50000);
-                $paymentDate = $status === 'paid' 
-                    ? Carbon::now()->subDays(rand(1, 365)) 
-                    : null;
-                $dueDate = Carbon::now()->addDays(rand(1, 60));
-                
-                Fee::create([
-                    'student_id' => $student->id,
-                    'amount' => $amount,
-                    'payment_date' => $paymentDate,
-                    'due_date' => $dueDate,
-                    'status' => $status,
-                    'fee_type' => $feeTypes[array_rand($feeTypes)],
-                    'payment_method' => $status === 'paid' ? $paymentMethods[array_rand($paymentMethods)] : null,
-                    'receipt_no' => 'RCP-' . date('Ymd') . '-' . str_pad(rand(1, 9999), 4, '0', STR_PAD_LEFT),
-                    'description' => 'Fee payment for ' . $student->first_name . ' ' . $student->last_name,
-                    'term' => 'Term ' . rand(1, 3) . ' ' . date('Y'),
-                    'academic_year' => date('Y'),
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ]);
-                
-                $feeCounter++;
-            }
+            $status = $feeStatuses[array_rand($feeStatuses)];
+            $amount = rand(5000, 50000);
+            $paymentDate = $status === 'paid' 
+                ? Carbon::now()->subDays(rand(1, 365))->format('Y-m-d')
+                : null;
+            $dueDate = Carbon::now()->addDays(rand(1, 60))->format('Y-m-d');
             
-            if ($feeCounter >= 10) {
-                break;
-            }
+            $feeData = [
+                'student_id' => $studentId,
+                'amount' => $amount,
+                'payment_date' => $paymentDate,
+                'due_date' => $dueDate,
+                'status' => $status,
+                'term' => 'Term ' . rand(1, 3) . ' ' . date('Y'),
+                'academic_year' => date('Y'),
+                'payment_method' => $status === 'paid' ? $paymentMethods[array_rand($paymentMethods)] : null,
+                'fee_type' => $feeTypes[array_rand($feeTypes)],
+                'description' => 'Fee payment for student',
+                'receipt_no' => 'RCP-' . date('Ymd') . '-' . str_pad(rand(1, 9999), 4, '0', STR_PAD_LEFT),
+                'paid_at' => $status === 'paid' ? now() : null,
+                'mpesa_phone' => null,
+                'mpesa_transaction_code' => null,
+                'mpesa_checkout_request_id' => null,
+                'mpesa_result_code' => null,
+                'mpesa_response' => null,
+                'account_reference' => null,
+                'mpesa_result_desc' => null,
+                'completed_at' => null,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ];
+            
+            DB::table('fees')->insert($feeData);
+            $feeCounter++;
         }
 
         // If less than 10 fees were created, add more
-        if ($feeCounter < 10 && $students->count() > 0) {
-            $remaining = 10 - $feeCounter;
+        if ($feeCounter < $targetFees && count($studentIds) > 0) {
+            $remaining = $targetFees - $feeCounter;
             for ($i = 0; $i < $remaining; $i++) {
-                $student = $students->random();
+                $studentId = $studentIds[array_rand($studentIds)];
                 $status = $feeStatuses[array_rand($feeStatuses)];
                 $amount = rand(5000, 50000);
                 $paymentDate = $status === 'paid' 
-                    ? Carbon::now()->subDays(rand(1, 365)) 
+                    ? Carbon::now()->subDays(rand(1, 365))->format('Y-m-d')
                     : null;
-                $dueDate = Carbon::now()->addDays(rand(1, 60));
+                $dueDate = Carbon::now()->addDays(rand(1, 60))->format('Y-m-d');
                 
-                Fee::create([
-                    'student_id' => $student->id,
+                $feeData = [
+                    'student_id' => $studentId,
                     'amount' => $amount,
                     'payment_date' => $paymentDate,
                     'due_date' => $dueDate,
                     'status' => $status,
-                    'fee_type' => $feeTypes[array_rand($feeTypes)],
-                    'payment_method' => $status === 'paid' ? $paymentMethods[array_rand($paymentMethods)] : null,
-                    'receipt_no' => 'RCP-' . date('Ymd') . '-' . str_pad(rand(1, 9999), 4, '0', STR_PAD_LEFT),
-                    'description' => 'Additional fee payment',
                     'term' => 'Term ' . rand(1, 3) . ' ' . date('Y'),
                     'academic_year' => date('Y'),
+                    'payment_method' => $status === 'paid' ? $paymentMethods[array_rand($paymentMethods)] : null,
+                    'fee_type' => $feeTypes[array_rand($feeTypes)],
+                    'description' => 'Additional fee payment',
+                    'receipt_no' => 'RCP-' . date('Ymd') . '-' . str_pad(rand(1, 9999), 4, '0', STR_PAD_LEFT),
+                    'paid_at' => $status === 'paid' ? now() : null,
+                    'mpesa_phone' => null,
+                    'mpesa_transaction_code' => null,
+                    'mpesa_checkout_request_id' => null,
+                    'mpesa_result_code' => null,
+                    'mpesa_response' => null,
+                    'account_reference' => null,
+                    'mpesa_result_desc' => null,
+                    'completed_at' => null,
                     'created_at' => now(),
                     'updated_at' => now(),
-                ]);
+                ];
+                
+                DB::table('fees')->insert($feeData);
                 $feeCounter++;
             }
         }
 
         $this->command->info('✅ ' . $feeCounter . ' fees seeded successfully!');
         $this->command->info('🎉 Database seeding completed successfully!');
+        
+        // Show summary
+        $this->command->info('📊 Summary:');
+        $this->command->info('   - Courses: ' . DB::table('courses')->count());
+        $this->command->info('   - Students: ' . DB::table('students')->count());
+        $this->command->info('   - Fees: ' . DB::table('fees')->count());
     }
 }
