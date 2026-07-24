@@ -1,0 +1,53 @@
+services:
+  - type: web
+    name: students-mng-system
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: APP_NAME
+        value: "Students Management System"
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: false
+      - key: APP_KEY
+        generateValue: true
+      - key: APP_URL
+        value: https://students-mng-system.onrender.com
+      - key: DB_CONNECTION
+        value: pgsql
+      - key: DB_HOST
+        fromDatabase:
+          name: students-db
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: students-db
+          property: port
+      - key: DB_DATABASE
+        fromDatabase:
+          name: students-db
+          property: database
+      - key: DB_USERNAME
+        fromDatabase:
+          name: students-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: students-db
+          property: password
+      - key: CACHE_STORE
+        value: database
+      - key: SESSION_DRIVER
+        value: database
+      - key: QUEUE_CONNECTION
+        value: database
+      - key: LOG_CHANNEL
+        value: stderr
+
+databases:
+  - name: students-db
+    plan: free
+    databaseName: students_db
+    user: students_user
