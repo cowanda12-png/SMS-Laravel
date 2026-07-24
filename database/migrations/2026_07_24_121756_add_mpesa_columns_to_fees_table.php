@@ -8,48 +8,55 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('fees', function (Blueprint $table) {
-            // Payment method column
-            $table->enum('payment_method', ['Cash', 'Bank Transfer', 'Cheque', 'M-Pesa', 'Credit Card', 'Other'])
-                  ->nullable()
-                  ->after('amount');
-            
-            // M-Pesa specific columns
-            $table->string('mpesa_phone', 20)->nullable()->after('payment_method');
-            $table->string('mpesa_checkout_request_id', 100)->nullable()->after('mpesa_phone');
-            $table->string('mpesa_transaction_code', 50)->nullable()->after('mpesa_checkout_request_id');
-            $table->string('mpesa_result_code', 10)->nullable()->after('mpesa_transaction_code');
-            $table->text('mpesa_result_desc')->nullable()->after('mpesa_result_code');
-            $table->json('mpesa_response')->nullable()->after('mpesa_result_desc');
-            
-            // Fee type and description
-            $table->string('fee_type', 50)->nullable()->after('mpesa_response');
-            $table->text('description')->nullable()->after('fee_type');
-            
-            // Receipt number
-            $table->string('receipt_no', 50)->nullable()->after('description');
-            
-            // Paid at timestamp
-            $table->timestamp('paid_at')->nullable()->after('status');
-        });
+        if (Schema::hasTable('fees')) {
+            Schema::table('fees', function (Blueprint $table) {
+                $columns = [
+                    'mpesa_phone' => 'string',
+                    'mpesa_transaction_code' => 'string',
+                    'mpesa_checkout_request_id' => 'string',
+                    'mpesa_result_code' => 'string',
+                    'mpesa_response' => 'json',
+                    'account_reference' => 'string',
+                    'mpesa_result_desc' => 'string',
+                    'completed_at' => 'timestamp'
+                ];
+                
+                foreach ($columns as $column => $type) {
+                    if (!Schema::hasColumn('fees', $column)) {
+                        if ($type === 'timestamp') {
+                            $table->timestamp($column)->nullable();
+                        } elseif ($type === 'json') {
+                            $table->json($column)->nullable();
+                        } else {
+                            $table->$type($column)->nullable();
+                        }
+                    }
+                }
+            });
+        }
     }
 
     public function down(): void
     {
-        Schema::table('fees', function (Blueprint $table) {
-            $table->dropColumn([
-                'payment_method',
+        if (Schema::hasTable('fees')) {
+            $columns = [
                 'mpesa_phone',
-                'mpesa_checkout_request_id',
                 'mpesa_transaction_code',
+                'mpesa_checkout_request_id',
                 'mpesa_result_code',
-                'mpesa_result_desc',
                 'mpesa_response',
-                'fee_type',
-                'description',
-                'receipt_no',
-                'paid_at'
-            ]);
-        });
+                'account_reference',
+                'mpesa_result_desc',
+                'completed_at'
+            ];
+            
+            foreach ($columns as $column) {
+                if (Schema::hasColumn('fees', $column)) {
+                    Schema::table('fees', function (Blueprint $table) use ($column) {
+                        $table->dropColumn($column);
+                    });
+                }
+            }
+        }
     }
 };

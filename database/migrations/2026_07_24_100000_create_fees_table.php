@@ -36,7 +36,7 @@ return new class extends Migration
                 
                 $table->timestamps();
                 
-                // Add indexes for better performance
+                // Indexes
                 $table->index('student_id');
                 $table->index('status');
                 $table->index('due_date');

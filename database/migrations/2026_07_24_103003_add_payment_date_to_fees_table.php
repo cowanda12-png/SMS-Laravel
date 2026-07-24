@@ -8,15 +8,19 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('fees', function (Blueprint $table) {
-            $table->timestamp('payment_date')->nullable()->after('amount');
-        });
+        if (Schema::hasTable('fees') && !Schema::hasColumn('fees', 'payment_date')) {
+            Schema::table('fees', function (Blueprint $table) {
+                $table->date('payment_date')->nullable()->after('amount');
+            });
+        }
     }
 
     public function down(): void
     {
-        Schema::table('fees', function (Blueprint $table) {
-            $table->dropColumn('payment_date');
-        });
+        if (Schema::hasTable('fees') && Schema::hasColumn('fees', 'payment_date')) {
+            Schema::table('fees', function (Blueprint $table) {
+                $table->dropColumn('payment_date');
+            });
+        }
     }
 };

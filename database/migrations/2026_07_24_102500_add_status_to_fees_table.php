@@ -8,13 +8,9 @@ return new class extends Migration
 {
     public function up(): void
     {
-        // Check if table exists and column doesn't exist
         if (Schema::hasTable('fees') && !Schema::hasColumn('fees', 'status')) {
             Schema::table('fees', function (Blueprint $table) {
-                $table->string('status')
-                      ->default('unpaid')
-                      ->after('due_date')
-                      ->check("status in ('paid', 'unpaid', 'partial')");
+                $table->string('status')->default('unpaid')->after('due_date');
             });
         }
     }
