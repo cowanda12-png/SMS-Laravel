@@ -8,15 +8,23 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('fees', function (Blueprint $table) {
-            $table->enum('status', ['paid', 'unpaid', 'partial'])->default('unpaid');
-        });
+        // Check if table exists and column doesn't exist
+        if (Schema::hasTable('fees') && !Schema::hasColumn('fees', 'status')) {
+            Schema::table('fees', function (Blueprint $table) {
+                $table->string('status')
+                      ->default('unpaid')
+                      ->after('due_date')
+                      ->check("status in ('paid', 'unpaid', 'partial')");
+            });
+        }
     }
 
     public function down(): void
     {
-        Schema::table('fees', function (Blueprint $table) {
-            $table->dropColumn('status');
-        });
+        if (Schema::hasTable('fees') && Schema::hasColumn('fees', 'status')) {
+            Schema::table('fees', function (Blueprint $table) {
+                $table->dropColumn('status');
+            });
+        }
     }
 };
