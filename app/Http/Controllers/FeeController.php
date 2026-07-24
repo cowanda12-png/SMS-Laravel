@@ -77,25 +77,25 @@ class FeeController extends Controller
         $pendingCount = Fee::where('status', 'pending')->count() ?? 0;
         $overdueCount = Fee::where('status', 'overdue')->count() ?? 0;
         
-     // Get distinct values for filters
-$paymentMethods = collect(); // payment_method column doesn't exist
-$feeTypes = collect(); // fee_type column doesn't exist
-$statuses = ['paid', 'pending', 'overdue'];
-$terms = Fee::distinct()->whereNotNull('term')->pluck('term')->filter()->values();
-$academicYears = Fee::distinct()->whereNotNull('academic_year')->pluck('academic_year')->filter()->values();
+        // Get distinct values for filters
+        $paymentMethods = collect(); // FIXED: payment_method column doesn't exist
+        $feeTypes = collect(); // FIXED: fee_type column doesn't exist
+        $statuses = ['paid', 'pending', 'overdue'];
+        $terms = Fee::distinct()->whereNotNull('term')->pluck('term')->filter()->values();
+        $academicYears = Fee::distinct()->whereNotNull('academic_year')->pluck('academic_year')->filter()->values();
         
-      // Get students for filter dropdown
-$students = Students::orderBy('name')->get();
-
-// Summary statistics for dashboard integration
-$summary = [
-    'total_collected' => $totalFees,
-    'today_collected' => $todayFees,
-    'pending_amount' => $pendingFees,
-    'overdue_amount' => $overdueFees,
-    'total_transactions' => Fee::count(),
-    'collection_rate' => $totalFees > 0 ? round(($totalFees - $pendingFees) / $totalFees * 100, 1) : 0,
-];
+        // Get students for filter dropdown
+        $students = Students::orderBy('name')->get(); // FIXED: changed from first_name, last_name
+        
+        // Summary statistics for dashboard integration
+        $summary = [
+            'total_collected' => $totalFees,
+            'today_collected' => $todayFees,
+            'pending_amount' => $pendingFees,
+            'overdue_amount' => $overdueFees,
+            'total_transactions' => Fee::count(),
+            'collection_rate' => $totalFees > 0 ? round(($totalFees - $pendingFees) / $totalFees * 100, 1) : 0,
+        ];
         
         // Monthly chart data for the dashboard integration
         $monthlyData = Fee::selectRaw('DATE_FORMAT(payment_date, "%Y-%m") as month, sum(amount) as total')
@@ -128,9 +128,7 @@ $summary = [
     public function create()
     {
         $students = Students::with('course')
-                            ->orderBy('first_name')
-                            ->orderBy('last_name')
-                            ->get();
+                            ->orderBy('name')->get(); // FIXED: changed from first_name, last_name
         
         $paymentMethods = ['Cash', 'Bank Transfer', 'Cheque', 'M-Pesa', 'Credit Card', 'Other'];
         $feeTypes = ['Tuition', 'Registration', 'Examination', 'Library', 'Sports', 'Laboratory', 'Other'];
@@ -246,9 +244,7 @@ $summary = [
     public function edit(Fee $fee)
     {
         $students = Students::with('course')
-                            ->orderBy('first_name')
-                            ->orderBy('last_name')
-                            ->get();
+                            ->orderBy('name')->get(); // FIXED: changed from first_name, last_name
         
         $paymentMethods = ['Cash', 'Bank Transfer', 'Cheque', 'M-Pesa', 'Credit Card', 'Other'];
         $feeTypes = ['Tuition', 'Registration', 'Examination', 'Library', 'Sports', 'Laboratory', 'Other'];

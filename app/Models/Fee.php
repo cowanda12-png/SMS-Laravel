@@ -19,24 +19,25 @@ class Fee extends Model
     protected $fillable = [
         'student_id',
         'amount',
-        'payment_method',
-        'fee_type',
-        'description',
-        'receipt_no',
         'payment_date',
         'due_date',
         'status',
-        'paid_at',
-        'mpesa_phone',
-        'mpesa_transaction_code',
-        'mpesa_checkout_request_id',
-        'mpesa_result_code',
-        'mpesa_response',
         'term',
         'academic_year',
-        'account_reference',
-        'mpesa_result_desc',
-        'completed_at',
+        // NOTE: The following columns don't exist in your database table
+        // 'payment_method',
+        // 'fee_type',
+        // 'description',
+        // 'receipt_no',
+        // 'paid_at',
+        // 'mpesa_phone',
+        // 'mpesa_transaction_code',
+        // 'mpesa_checkout_request_id',
+        // 'mpesa_result_code',
+        // 'mpesa_response',
+        // 'account_reference',
+        // 'mpesa_result_desc',
+        // 'completed_at',
     ];
 
     /**
@@ -48,10 +49,10 @@ class Fee extends Model
         'amount' => 'decimal:2',
         'payment_date' => 'date',
         'due_date' => 'date',
-        'paid_at' => 'datetime',
-        'mpesa_response' => 'array',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
+        // Removed: 'paid_at' => 'datetime', - column doesn't exist
+        // Removed: 'mpesa_response' => 'array', - column doesn't exist
     ];
 
     /**
@@ -62,9 +63,9 @@ class Fee extends Model
     protected $dates = [
         'payment_date',
         'due_date',
-        'paid_at',
         'created_at',
         'updated_at',
+        // Removed: 'paid_at' - column doesn't exist
     ];
 
     // ==================== RELATIONSHIPS ====================
@@ -104,85 +105,85 @@ class Fee extends Model
     // ==================== ACCESSORS ====================
 
     /**
-     * Get student's full name - FIXED with proper fallback
+     * Get student's full name - FIXED to use 'name' column
      */
     public function getStudentNameAttribute()
     {
-        // Check if relationship is loaded
         if ($this->relationLoaded('student') && $this->student) {
-            $firstName = $this->student->first_name ?? '';
-            $lastName = $this->student->last_name ?? '';
-            $fullName = trim($firstName . ' ' . $lastName);
-            return $fullName ?: 'Unknown Student';
-        }
-        
-        // Try to load student directly if not loaded
-        if ($this->student_id) {
-            try {
-                $student = Students::find($this->student_id);
-                if ($student) {
-                    $firstName = $student->first_name ?? '';
-                    $lastName = $student->last_name ?? '';
-                    $fullName = trim($firstName . ' ' . $lastName);
-                    return $fullName ?: 'Unknown Student';
-                }
-            } catch (\Exception $e) {
-                // Fall through to default
-            }
-        }
-        
-        return 'Student #' . $this->student_id;
-    }
-
-    /**
-     * Get student's first name - FIXED with proper fallback
-     */
-    public function getStudentFirstNameAttribute()
-    {
-        if ($this->relationLoaded('student') && $this->student) {
-            return $this->student->first_name ?? 'Unknown';
+            return $this->student->name ?? 'Unknown Student';
         }
         
         try {
             $student = Students::find($this->student_id);
-            return $student->first_name ?? 'Unknown';
+            return $student->name ?? 'Unknown Student';
+        } catch (\Exception $e) {
+            return 'Student #' . $this->student_id;
+        }
+    }
+
+    /**
+     * Get student's name - FIXED to use 'name' column
+     */
+    public function getStudentFirstNameAttribute()
+    {
+        // Since your Students table uses 'name' instead of 'first_name'
+        if ($this->relationLoaded('student') && $this->student) {
+            $name = $this->student->name ?? 'Unknown';
+            // Split name to get first part as first name
+            $parts = explode(' ', $name);
+            return $parts[0] ?? 'Unknown';
+        }
+        
+        try {
+            $student = Students::find($this->student_id);
+            if ($student) {
+                $parts = explode(' ', $student->name ?? 'Unknown');
+                return $parts[0] ?? 'Unknown';
+            }
+            return 'Unknown';
         } catch (\Exception $e) {
             return 'Unknown';
         }
     }
 
     /**
-     * Get student's last name - FIXED with proper fallback
+     * Get student's last name - FIXED to use 'name' column
      */
     public function getStudentLastNameAttribute()
     {
         if ($this->relationLoaded('student') && $this->student) {
-            return $this->student->last_name ?? 'Unknown';
+            $name = $this->student->name ?? 'Unknown';
+            $parts = explode(' ', $name);
+            return count($parts) > 1 ? end($parts) : $parts[0] ?? 'Unknown';
         }
         
         try {
             $student = Students::find($this->student_id);
-            return $student->last_name ?? 'Unknown';
+            if ($student) {
+                $parts = explode(' ', $student->name ?? 'Unknown');
+                return count($parts) > 1 ? end($parts) : $parts[0] ?? 'Unknown';
+            }
+            return 'Unknown';
         } catch (\Exception $e) {
             return 'Unknown';
         }
     }
 
     /**
-     * Get student's course name - FIXED with proper fallback
+     * Get student's course name - FIXED
      */
     public function getStudentCourseAttribute()
     {
         if ($this->relationLoaded('student') && $this->student) {
             if ($this->student->relationLoaded('course')) {
-                return $this->student->course->course_name ?? 'Not Assigned';
+                return $this->student->course->course_name ?? $this->student->course->name ?? 'Not Assigned';
             }
         }
         
         try {
             $student = Students::with('course')->find($this->student_id);
             if ($student && $student->course) {
-                return $student->course->course_name;
+                return $student->course->course_name ?? $student->course->name ?? 'Not Assigned';
             }
         } catch (\Exception $e) {
             // Fall through
@@ -192,7 +193,7 @@ class Fee extends Model
     }
 
     /**
-     * Get student's admission number - FIXED with proper fallback
+     * Get student's admission number - FIXED
      */
     public function getStudentAdmissionAttribute()
     {
@@ -209,7 +210,7 @@ class Fee extends Model
     }
 
     /**
-     * Get student's phone number - FIXED with proper fallback
+     * Get student's phone number - FIXED
      */
     public function getStudentPhoneAttribute()
     {
@@ -226,7 +227,7 @@ class Fee extends Model
     }
 
     /**
-     * Get student's email - FIXED with proper fallback
+     * Get student's email - FIXED
      */
     public function getStudentEmailAttribute()
     {
@@ -289,14 +290,12 @@ class Fee extends Model
             'pending' => 'warning',
             'paid' => 'success',
             'overdue' => 'danger',
-            'cancelled' => 'secondary',
         ];
 
         $icons = [
             'pending' => 'fa-clock',
             'paid' => 'fa-check-circle',
             'overdue' => 'fa-exclamation-circle',
-            'cancelled' => 'fa-times-circle',
         ];
 
         return [
@@ -334,58 +333,19 @@ class Fee extends Model
     }
 
     /**
-     * Get payment method with icon HTML.
+     * Get payment method with icon HTML - Removed (payment_method doesn't exist)
      */
-    public function getPaymentMethodWithIconAttribute()
-    {
-        $icons = [
-            'Cash' => '<i class="fas fa-money-bill-wave me-1"></i> Cash',
-            'Bank Transfer' => '<i class="fas fa-university me-1"></i> Bank Transfer',
-            'Cheque' => '<i class="fas fa-file-invoice me-1"></i> Cheque',
-            'M-Pesa' => '<i class="fas fa-mobile-alt me-1"></i> M-Pesa',
-            'Mpesa' => '<i class="fas fa-mobile-alt me-1"></i> M-Pesa',
-            'Credit Card' => '<i class="fas fa-credit-card me-1"></i> Credit Card',
-            'Other' => '<i class="fas fa-hand-holding-usd me-1"></i> Other',
-        ];
-
-        return $icons[$this->payment_method] ?? $this->payment_method ?? 'N/A';
-    }
+    // public function getPaymentMethodWithIconAttribute() - REMOVED
 
     /**
-     * Get payment method icon class.
+     * Get payment method icon class - Removed (payment_method doesn't exist)
      */
-    public function getPaymentMethodIconAttribute()
-    {
-        $icons = [
-            'Cash' => 'fa-money-bill-wave',
-            'Bank Transfer' => 'fa-university',
-            'Cheque' => 'fa-file-invoice',
-            'M-Pesa' => 'fa-mobile-alt',
-            'Mpesa' => 'fa-mobile-alt',
-            'Credit Card' => 'fa-credit-card',
-            'Other' => 'fa-hand-holding-usd',
-        ];
-
-        return $icons[$this->payment_method] ?? 'fa-circle';
-    }
+    // public function getPaymentMethodIconAttribute() - REMOVED
 
     /**
-     * Get payment method badge color.
+     * Get payment method badge color - Removed (payment_method doesn't exist)
      */
-    public function getPaymentMethodColorAttribute()
-    {
-        $colors = [
-            'Cash' => 'success',
-            'Bank Transfer' => 'primary',
-            'Cheque' => 'info',
-            'M-Pesa' => 'success',
-            'Mpesa' => 'success',
-            'Credit Card' => 'warning',
-            'Other' => 'secondary',
-        ];
-
-        return $colors[$this->payment_method] ?? 'secondary';
-    }
+    // public function getPaymentMethodColorAttribute() - REMOVED
 
     /**
      * Get M-Pesa transaction status.
@@ -410,7 +370,7 @@ class Fee extends Model
     }
 
     /**
-     * Get payment summary - FIXED with error handling
+     * Get payment summary - FIXED
      */
     public function getSummaryAttribute()
     {
@@ -420,16 +380,13 @@ class Fee extends Model
                 'student' => $this->student_name,
                 'student_id' => $this->student_id,
                 'amount' => $this->formatted_amount,
-                'payment_method' => $this->payment_method,
-                'payment_method_with_icon' => $this->payment_method_with_icon,
                 'status' => $this->status,
                 'status_badge' => $this->status_badge,
                 'date' => $this->formatted_payment_date,
-                'receipt' => $this->receipt_badge,
                 'due_date' => $this->formatted_due_date,
                 'is_overdue' => $this->is_overdue,
-                'is_mpesa' => $this->isMpesaPayment(),
-                'mpesa_status' => $this->mpesa_status,
+                'term' => $this->term,
+                'academic_year' => $this->academic_year,
             ];
         } catch (\Exception $e) {
             return [
@@ -437,16 +394,13 @@ class Fee extends Model
                 'student' => 'Unknown Student',
                 'student_id' => $this->student_id,
                 'amount' => 'KES ' . number_format($this->amount, 2),
-                'payment_method' => $this->payment_method ?? 'N/A',
-                'payment_method_with_icon' => $this->payment_method ?? 'N/A',
                 'status' => $this->status ?? 'pending',
                 'status_badge' => ['color' => 'secondary', 'icon' => 'fa-circle', 'label' => ucfirst($this->status ?? 'pending')],
                 'date' => $this->payment_date ? $this->payment_date->format('d M Y') : 'N/A',
-                'receipt' => $this->receipt_no ?? 'N/A',
                 'due_date' => $this->due_date ? $this->due_date->format('d M Y') : 'N/A',
                 'is_overdue' => false,
-                'is_mpesa' => false,
-                'mpesa_status' => null,
+                'term' => $this->term ?? 'N/A',
+                'academic_year' => $this->academic_year ?? 'N/A',
             ];
         }
     }
@@ -468,20 +422,14 @@ class Fee extends Model
     }
 
     /**
-     * Get formatted paid date.
+     * Get formatted paid date - Removed (paid_at doesn't exist)
      */
-    public function getFormattedPaidDateAttribute()
-    {
-        return $this->paid_at ? $this->paid_at->format('d M Y H:i') : 'Not Paid Yet';
-    }
+    // public function getFormattedPaidDateAttribute() - REMOVED
 
     /**
-     * Get receipt with badge.
+     * Get receipt with badge - Removed (receipt_no doesn't exist)
      */
-    public function getReceiptBadgeAttribute()
-    {
-        return $this->receipt_no ?? 'N/A';
-    }
+    // public function getReceiptBadgeAttribute() - REMOVED
 
     // ==================== SCOPES ====================
 
@@ -494,12 +442,9 @@ class Fee extends Model
     }
 
     /**
-     * Scope: Filter by payment method.
+     * Scope: Filter by payment method - Removed (payment_method doesn't exist)
      */
-    public function scopeByMethod($query, $method)
-    {
-        return $query->where('payment_method', $method);
-    }
+    // public function scopeByMethod($query, $method) - REMOVED
 
     /**
      * Scope: Today's payments.
@@ -551,26 +496,20 @@ class Fee extends Model
     }
 
     /**
-     * Scope: M-Pesa payments.
+     * Scope: M-Pesa payments - Removed (payment_method doesn't exist)
      */
-    public function scopeMpesa($query)
-    {
-        return $query->where('payment_method', 'M-Pesa')
-                     ->orWhere('payment_method', 'Mpesa');
-    }
+    // public function scopeMpesa($query) - REMOVED
 
     /**
-     * Scope: Search by receipt number or student.
+     * Scope: Search by student name.
      */
     public function scopeSearch($query, $search)
     {
-        return $query->where('receipt_no', 'LIKE', "%{$search}%")
-                     ->orWhereHas('student', function($q) use ($search) {
-                         $q->where('first_name', 'LIKE', "%{$search}%")
-                           ->orWhere('last_name', 'LIKE', "%{$search}%")
-                           ->orWhere('email', 'LIKE', "%{$search}%")
-                           ->orWhere('admission_number', 'LIKE', "%{$search}%");
-                     });
+        return $query->whereHas('student', function($q) use ($search) {
+            $q->where('name', 'LIKE', "%{$search}%")
+              ->orWhere('email', 'LIKE', "%{$search}%")
+              ->orWhere('admission_number', 'LIKE', "%{$search}%");
+        });
     }
 
     /**
@@ -616,12 +555,9 @@ class Fee extends Model
     }
 
     /**
-     * Check if fee is cancelled.
+     * Check if fee is cancelled - Removed (cancelled status not in your schema)
      */
-    public function isCancelled()
-    {
-        return $this->status === 'cancelled';
-    }
+    // public function isCancelled() - REMOVED
 
     /**
      * Check if fee has an M-Pesa transaction.
@@ -632,12 +568,9 @@ class Fee extends Model
     }
 
     /**
-     * Check if M-Pesa payment.
+     * Check if M-Pesa payment - Removed (payment_method doesn't exist)
      */
-    public function isMpesaPayment()
-    {
-        return $this->payment_method === 'M-Pesa' || $this->payment_method === 'Mpesa';
-    }
+    // public function isMpesaPayment() - REMOVED
 
     /**
      * Mark fee as paid.
@@ -646,7 +579,6 @@ class Fee extends Model
     {
         $this->update([
             'status' => 'paid',
-            'paid_at' => now(),
         ]);
     }
 
@@ -667,74 +599,28 @@ class Fee extends Model
     {
         $this->update([
             'status' => 'pending',
-            'paid_at' => null,
         ]);
     }
 
     /**
-     * Generate receipt number.
+     * Generate receipt number - Removed (receipt_no doesn't exist)
      */
-    public function generateReceiptNumber()
-    {
-        return 'RCP-' . now()->format('Ymd') . '-' . 
-               str_pad($this->id ?? Fee::count() + 1, 4, '0', STR_PAD_LEFT);
-    }
+    // public function generateReceiptNumber() - REMOVED
 
     /**
-     * Get M-Pesa transaction status.
+     * Get M-Pesa transaction status - Removed (mpesa columns don't exist)
      */
-    public function getMpesaStatusAttribute()
-    {
-        if (!$this->isMpesaPayment()) {
-            return null;
-        }
-
-        if ($this->mpesa_result_code === '0') {
-            return 'Successful';
-        } elseif ($this->mpesa_result_code === '1032') {
-            return 'Cancelled';
-        } elseif ($this->mpesa_result_code === '1037') {
-            return 'Timed Out';
-        } elseif ($this->mpesa_result_code === '2001') {
-            return 'Wrong PIN';
-        } elseif ($this->mpesa_result_code) {
-            return 'Failed';
-        }
-
-        return 'Pending';
-    }
+    // public function getMpesaStatusAttribute() - REMOVED
 
     /**
-     * Get M-Pesa status badge color.
+     * Get M-Pesa status badge color - Removed (mpesa columns don't exist)
      */
-    public function getMpesaStatusColorAttribute()
-    {
-        $colors = [
-            'Successful' => 'success',
-            'Cancelled' => 'warning',
-            'Timed Out' => 'info',
-            'Wrong PIN' => 'danger',
-            'Failed' => 'danger',
-            'Pending' => 'warning',
-        ];
-
-        return $colors[$this->mpesa_status] ?? 'secondary';
-    }
+    // public function getMpesaStatusColorAttribute() - REMOVED
 
     /**
-     * Get M-Pesa status with badge HTML.
+     * Get M-Pesa status with badge HTML - Removed (mpesa columns don't exist)
      */
-    public function getMpesaStatusBadgeAttribute()
-    {
-        $status = $this->mpesa_status;
-        $color = $this->mpesa_status_color;
-        
-        if (!$status) {
-            return '<span class="badge bg-secondary">N/A</span>';
-        }
-        
-        return '<span class="badge bg-' . $color . '">' . $status . '</span>';
-    }
+    // public function getMpesaStatusBadgeAttribute() - REMOVED
 
     /**
      * Get student details for the receipt - FIXED
@@ -750,9 +636,9 @@ class Fee extends Model
             
             if ($student) {
                 return [
-                    'name' => trim(($student->first_name ?? '') . ' ' . ($student->last_name ?? '')) ?: 'Unknown Student',
+                    'name' => $student->name ?? 'Unknown Student',
                     'admission_number' => $student->admission_number ?? 'N/A',
-                    'course' => $student->course->course_name ?? 'Not Assigned',
+                    'course' => $student->course->course_name ?? $student->course->name ?? 'Not Assigned',
                     'phone' => $student->phone ?? '',
                     'email' => $student->email ?? 'N/A',
                 ];
@@ -784,11 +670,6 @@ class Fee extends Model
     protected static function booted()
     {
         static::creating(function ($fee) {
-            // Auto-generate receipt number if not provided
-            if (empty($fee->receipt_no)) {
-                $fee->receipt_no = $fee->generateReceiptNumber();
-            }
-
             // Set default status if not provided
             if (empty($fee->status)) {
                 $fee->status = 'pending';
@@ -798,23 +679,10 @@ class Fee extends Model
             if (empty($fee->due_date) && !empty($fee->payment_date)) {
                 $fee->due_date = Carbon::parse($fee->payment_date)->addDays(30);
             }
-
-            // If status is paid, set paid_at
-            if ($fee->status === 'paid' && empty($fee->paid_at)) {
-                $fee->paid_at = now();
-            }
         });
 
         static::updating(function ($fee) {
-            // If status changes to paid, set paid_at
-            if ($fee->status === 'paid' && $fee->getOriginal('status') !== 'paid') {
-                $fee->paid_at = now();
-            }
-
-            // If status changes from paid, clear paid_at
-            if ($fee->status !== 'paid' && $fee->getOriginal('status') === 'paid') {
-                $fee->paid_at = null;
-            }
+            // No action needed for paid_at since column doesn't exist
         });
 
         static::deleting(function ($fee) {
