@@ -9,6 +9,8 @@ use Illuminate\Validation\Rule;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
 
 class FeeController extends Controller
 {
@@ -78,14 +80,14 @@ class FeeController extends Controller
         $overdueCount = Fee::where('status', 'overdue')->count() ?? 0;
         
         // Get distinct values for filters
-        $paymentMethods = collect(); // FIXED: payment_method column doesn't exist
-        $feeTypes = collect(); // FIXED: fee_type column doesn't exist
+        $paymentMethods = collect();
+        $feeTypes = collect();
         $statuses = ['paid', 'pending', 'overdue'];
         $terms = Fee::distinct()->whereNotNull('term')->pluck('term')->filter()->values();
         $academicYears = Fee::distinct()->whereNotNull('academic_year')->pluck('academic_year')->filter()->values();
         
         // Get students for filter dropdown
-        $students = Students::orderBy('name')->get(); // FIXED: changed from first_name, last_name
+        $students = Students::orderBy('first_name')->orderBy('last_name')->get();
         
         // Summary statistics for dashboard integration
         $summary = [
@@ -97,13 +99,28 @@ class FeeController extends Controller
             'collection_rate' => $totalFees > 0 ? round(($totalFees - $pendingFees) / $totalFees * 100, 1) : 0,
         ];
         
-        // Monthly chart data for the dashboard integration
-        $monthlyData = Fee::selectRaw('DATE_FORMAT(payment_date, "%Y-%m") as month, sum(amount) as total')
-                          ->whereNotNull('payment_date')
-                          ->whereYear('payment_date', Carbon::now()->year)
-                          ->groupBy('month')
-                          ->orderBy('month')
-                          ->get();
+        // Monthly chart data - Database agnostic
+        $monthlyData = collect();
+        if (Schema::hasColumn('fees', 'payment_date')) {
+            $driver = DB::connection()->getDriverName();
+            
+            if ($driver === 'pgsql') {
+                $monthlyData = Fee::selectRaw("TO_CHAR(payment_date, 'YYYY-MM') as month, SUM(amount) as total")
+                                  ->whereNotNull('payment_date')
+                                  ->whereYear('payment_date', Carbon::now()->year)
+                                  ->groupBy('month')
+                                  ->orderBy('month')
+                                  ->get();
+            } else {
+                // MySQL, SQLite, etc.
+                $monthlyData = Fee::selectRaw("DATE_FORMAT(payment_date, '%Y-%m') as month, SUM(amount) as total")
+                                  ->whereNotNull('payment_date')
+                                  ->whereYear('payment_date', Carbon::now()->year)
+                                  ->groupBy('month')
+                                  ->orderBy('month')
+                                  ->get();
+            }
+        }
         
         return view('fees.index', compact(
             'fees', 
@@ -128,7 +145,9 @@ class FeeController extends Controller
     public function create()
     {
         $students = Students::with('course')
-                            ->orderBy('name')->get(); // FIXED: changed from first_name, last_name
+                            ->orderBy('first_name')
+                            ->orderBy('last_name')
+                            ->get();
         
         $paymentMethods = ['Cash', 'Bank Transfer', 'Cheque', 'M-Pesa', 'Credit Card', 'Other'];
         $feeTypes = ['Tuition', 'Registration', 'Examination', 'Library', 'Sports', 'Laboratory', 'Other'];
@@ -244,7 +263,9 @@ class FeeController extends Controller
     public function edit(Fee $fee)
     {
         $students = Students::with('course')
-                            ->orderBy('name')->get(); // FIXED: changed from first_name, last_name
+                            ->orderBy('first_name')
+                            ->orderBy('last_name')
+                            ->get();
         
         $paymentMethods = ['Cash', 'Bank Transfer', 'Cheque', 'M-Pesa', 'Credit Card', 'Other'];
         $feeTypes = ['Tuition', 'Registration', 'Examination', 'Library', 'Sports', 'Laboratory', 'Other'];
@@ -370,7 +391,7 @@ class FeeController extends Controller
             foreach ($fees as $fee) {
                 fputcsv($handle, [
                     $fee->receipt_no,
-                    $fee->student->full_name ?? $fee->student->first_name . ' ' . $fee->student->last_name,
+                    $fee->student->first_name . ' ' . $fee->student->last_name,
                     $fee->amount,
                     $fee->payment_method,
                     $fee->fee_type,
@@ -412,6 +433,25 @@ class FeeController extends Controller
      */
     public function stats()
     {
+        // Monthly trend - Database agnostic
+        $driver = DB::connection()->getDriverName();
+        
+        if ($driver === 'pgsql') {
+            $monthlyTrend = Fee::selectRaw("TO_CHAR(payment_date, 'YYYY-MM') as month, SUM(amount) as total")
+                               ->whereNotNull('payment_date')
+                               ->whereYear('payment_date', Carbon::now()->year)
+                               ->groupBy('month')
+                               ->orderBy('month')
+                               ->get();
+        } else {
+            $monthlyTrend = Fee::selectRaw("DATE_FORMAT(payment_date, '%Y-%m') as month, SUM(amount) as total")
+                               ->whereNotNull('payment_date')
+                               ->whereYear('payment_date', Carbon::now()->year)
+                               ->groupBy('month')
+                               ->orderBy('month')
+                               ->get();
+        }
+        
         $stats = [
             'total_collected' => Fee::sum('amount') ?? 0,
             'today_collected' => Fee::whereDate('payment_date', Carbon::today())->sum('amount') ?? 0,
@@ -434,12 +474,7 @@ class FeeController extends Controller
                                       ->orderBy('fees_sum_amount', 'desc')
                                       ->limit(10)
                                       ->get(['id', 'first_name', 'last_name', 'fees_sum_amount']),
-            'monthly_trend' => Fee::selectRaw('DATE_FORMAT(payment_date, "%Y-%m") as month, sum(amount) as total')
-                                   ->whereNotNull('payment_date')
-                                   ->whereYear('payment_date', Carbon::now()->year)
-                                   ->groupBy('month')
-                                   ->orderBy('month')
-                                   ->get(),
+            'monthly_trend' => $monthlyTrend,
         ];
 
         return response()->json($stats);
