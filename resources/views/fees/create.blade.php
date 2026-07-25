@@ -3,20 +3,20 @@
 @section('title', 'Record New Payment')
 
 @section('content')
-<div class="container-fluid px-4 py-3">
+<div class="container-fluid px-2 px-sm-3 px-md-4 py-3">
     <div class="row justify-content-center">
-        <div class="col-lg-10 col-xl-8">
+        <div class="col-12 col-lg-10 col-xl-8">
 
             <!-- Page Header -->
-            <div class="d-flex justify-content-between align-items-center mb-4">
+            <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
                 <div>
                     <h4 class="fw-bold mb-0">
                         <i class="fas fa-plus-circle text-primary me-2"></i> Record New Payment
                     </h4>
                     <p class="text-muted small mb-0">Record a new fee payment for a student</p>
                 </div>
-                <a href="{{ route('fees.index') }}" class="btn btn-secondary btn-sm">
-                    <i class="fas fa-arrow-left me-1"></i> Back
+                <a href="{{ route('fees.index') }}" class="btn btn-secondary btn-sm mt-2 mt-sm-0">
+                    <i class="fas fa-arrow-left me-1"></i> <span class="d-none d-sm-inline">Back</span>
                 </a>
             </div>
 
@@ -31,7 +31,7 @@
             @if($errors->any())
                 <div class="alert alert-danger alert-dismissible fade show" role="alert">
                     <i class="fas fa-exclamation-circle me-1"></i> Please fix the following errors:
-                    <ul class="mb-0 mt-1">
+                    <ul class="mb-0 mt-1 ps-3">
                         @foreach($errors->all() as $error)
                             <li>{{ $error }}</li>
                         @endforeach
@@ -45,7 +45,7 @@
 
             <!-- Main Card -->
             <div class="card border-0 shadow-sm">
-                <div class="card-body p-4">
+                <div class="card-body p-3 p-sm-4">
                     <form action="{{ route('fees.store') }}" method="POST" id="paymentForm">
                         @csrf
 
@@ -80,7 +80,7 @@
                         <!-- Payment Method Selection -->
                         <div class="mb-4">
                             <label class="form-label fw-semibold d-block">Payment Method <span class="text-danger">*</span></label>
-                            <div class="row row-cols-2 row-cols-md-3 row-cols-lg-5 g-2">
+                            <div class="row row-cols-2 row-cols-sm-3 row-cols-md-5 g-2">
                                 @php
                                     $methods = [
                                         'M-Pesa' => 'fa-mobile-alt',
@@ -119,7 +119,7 @@
                                     <i class="fas fa-mobile-alt me-1"></i>
                                     M-Pesa selected — an STK push is needed to confirm this payment.
                                 </div>
-                                <button type="button" class="btn btn-sm btn-success ms-3" data-bs-toggle="modal" data-bs-target="#mpesaModal">
+                                <button type="button" class="btn btn-sm btn-success ms-2" data-bs-toggle="modal" data-bs-target="#mpesaModal">
                                     <i class="fas fa-paper-plane me-1"></i> Send STK Push
                                 </button>
                             </div>
@@ -132,8 +132,8 @@
                         </div>
 
                         <!-- Amount / Term / Academic Year -->
-                        <div class="row g-3 mb-4">
-                            <div class="col-md-4">
+                        <div class="row g-2 g-sm-3 mb-4">
+                            <div class="col-12 col-sm-6 col-md-4">
                                 <label for="amount" class="form-label fw-semibold">
                                     Amount (KES) <span class="text-danger">*</span>
                                 </label>
@@ -145,17 +145,18 @@
                                            value="{{ old('amount') }}"
                                            placeholder="15000" required>
                                 </div>
-                                <div class="d-flex gap-2 mt-2">
+                                <div class="d-flex gap-1 mt-2">
                                     <button type="button" class="btn btn-sm btn-outline-secondary flex-fill" onclick="quickAmount(5000)">5K</button>
                                     <button type="button" class="btn btn-sm btn-outline-secondary flex-fill" onclick="quickAmount(10000)">10K</button>
                                     <button type="button" class="btn btn-sm btn-outline-secondary flex-fill" onclick="quickAmount(15000)">15K</button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary flex-fill" onclick="quickAmount(20000)">20K</button>
                                 </div>
                                 @error('amount')
                                     <div class="invalid-feedback d-block">{{ $message }}</div>
                                 @enderror
                             </div>
 
-                            <div class="col-md-4">
+                            <div class="col-6 col-sm-6 col-md-4">
                                 <label for="term" class="form-label fw-semibold">Term</label>
                                 <select name="term" id="term" class="form-select">
                                     <option value="Term 1" {{ old('term') == 'Term 1' ? 'selected' : '' }}>Term 1</option>
@@ -164,7 +165,7 @@
                                 </select>
                             </div>
 
-                            <div class="col-md-4">
+                            <div class="col-6 col-sm-12 col-md-4">
                                 <label for="academic_year" class="form-label fw-semibold">Academic Year</label>
                                 <select name="academic_year" id="academic_year" class="form-select">
                                     <option value="{{ date('Y') }}/{{ date('Y')+1 }}" selected>
@@ -181,8 +182,8 @@
                         </div>
 
                         <!-- Receipt & Date -->
-                        <div class="row g-3 mb-4">
-                            <div class="col-md-6">
+                        <div class="row g-2 g-sm-3 mb-4">
+                            <div class="col-12 col-sm-6">
                                 <label for="receipt_no" class="form-label fw-semibold">Receipt Number</label>
                                 <input type="text" name="receipt_no" id="receipt_no"
                                        class="form-control @error('receipt_no') is-invalid @enderror"
@@ -196,7 +197,7 @@
                                 @enderror
                             </div>
 
-                            <div class="col-md-6">
+                            <div class="col-12 col-sm-6">
                                 <label for="payment_date" class="form-label fw-semibold">
                                     Payment Date <span class="text-danger">*</span>
                                 </label>
@@ -211,8 +212,8 @@
                         </div>
 
                         <!-- Fee Type & Status -->
-                        <div class="row g-3 mb-4">
-                            <div class="col-md-6">
+                        <div class="row g-2 g-sm-3 mb-4">
+                            <div class="col-12 col-sm-6">
                                 <label for="fee_type" class="form-label fw-semibold">Fee Type</label>
                                 <select name="fee_type" id="fee_type"
                                         class="form-select @error('fee_type') is-invalid @enderror">
@@ -229,7 +230,7 @@
                                 @enderror
                             </div>
 
-                            <div class="col-md-6">
+                            <div class="col-12 col-sm-6">
                                 <label for="status" class="form-label fw-semibold">Payment Status</label>
                                 <select name="status" id="status" class="form-select">
                                     <option value="pending" {{ old('status', 'pending') == 'pending' ? 'selected' : '' }}>
@@ -265,7 +266,7 @@
                         <input type="hidden" name="mpesa_reference" id="mpesa_reference" value="PAY-{{ date('Ymd') }}-{{ rand(1000, 9999) }}">
 
                         <!-- Form Actions -->
-                        <div class="d-flex gap-2 justify-content-end pt-3 border-top">
+                        <div class="d-flex flex-wrap gap-2 justify-content-end pt-3 border-top">
                             <a href="{{ route('fees.index') }}" class="btn btn-secondary btn-lg px-4">
                                 <i class="fas fa-times me-1"></i> Cancel
                             </a>
@@ -282,7 +283,7 @@
 
 <!-- M-Pesa STK Push Modal -->
 <div class="modal fade" id="mpesaModal" tabindex="-1" aria-labelledby="mpesaModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title d-flex align-items-center" id="mpesaModalLabel">
@@ -305,7 +306,7 @@
                     <div class="form-control-plaintext fw-semibold py-0" id="modal_student_name">— No student selected —</div>
                 </div>
 
-                <div class="row g-3">
+                <div class="row g-2 g-sm-3">
                     <div class="col-8">
                         <label for="modal_mpesa_phone" class="form-label fw-semibold">
                             Phone Number <span class="text-danger">*</span>
@@ -373,23 +374,26 @@
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        padding: 14px 8px;
+        padding: 12px 6px;
         border-radius: 10px;
         border: 2px solid #e9ecef;
         color: #495057;
         background: #f8f9fa;
         transition: all 0.15s ease;
         cursor: pointer;
-        min-height: 70px;
+        min-height: 60px;
     }
+    
     .payment-method-btn i {
-        font-size: 1.15rem;
+        font-size: 1rem;
     }
+    
     .payment-method-btn:hover {
         border-color: #6c8cff;
         background: #f0f4ff;
         color: #212529;
     }
+    
     .btn-check:checked + .payment-method-btn {
         border-color: #6c8cff;
         background: #eef2ff;
@@ -431,6 +435,50 @@
 
     .alert {
         border-radius: 10px;
+    }
+    
+    /* Responsive */
+    @media (max-width: 767.98px) {
+        .card-body {
+            padding: 1rem !important;
+        }
+        
+        .payment-method-btn {
+            min-height: 50px;
+            padding: 8px 4px;
+        }
+        
+        .payment-method-btn i {
+            font-size: 0.85rem;
+        }
+        
+        .payment-method-btn .small {
+            font-size: 0.65rem !important;
+        }
+    }
+    
+    @media (max-width: 575.98px) {
+        .card-body {
+            padding: 0.75rem !important;
+        }
+        
+        .payment-method-btn {
+            min-height: 44px;
+            padding: 6px 4px;
+        }
+        
+        .payment-method-btn i {
+            font-size: 0.75rem;
+        }
+        
+        .payment-method-btn .small {
+            font-size: 0.55rem !important;
+        }
+        
+        .btn-lg {
+            font-size: 0.8rem;
+            padding: 6px 14px;
+        }
     }
 </style>
 @endsection
@@ -805,7 +853,7 @@
     }
 
     // ============================================
-    // ⭐ FIXED: Initiate M-Pesa STK Push with phone fallback
+    // ⭐ Initiate M-Pesa STK Push
     // ============================================
     async function initiateMpesaPayment() {
         // Validate student selection
@@ -862,7 +910,6 @@
         if (statusProgress) statusProgress.style.width = '20%';
 
         try {
-            // ⭐ Use the correct route name
             const response = await axios.post('{{ route("mpesa.stkpush") }}', {
                 student_id: studentId,
                 amount: amount,
@@ -893,7 +940,7 @@
                     sendButton.innerHTML = '<i class="fas fa-paper-plane me-1"></i> Send STK Push';
                 }
                 
-                // ⭐ Start polling with phone for fallback
+                // Start polling with phone for fallback
                 startPolling(response.data.checkout_request_id, response.data.phone || phone);
             } else {
                 mpesaFailed(response.data.message || 'Failed to send payment request.');
@@ -906,7 +953,7 @@
     }
 
     // ============================================
-    // ⭐ FIXED: Poll for transaction status with phone fallback
+    // ⭐ Poll for transaction status with phone fallback
     // ============================================
     function startPolling(checkoutRequestId, phone) {
         let attempts = 0;
@@ -927,11 +974,11 @@
             }
 
             try {
-                // ⭐ Include phone in the request for fallback
+                // Include phone in the request for fallback
                 const response = await axios.get('{{ route("mpesa.status") }}', {
                     params: {
                         checkout_request_id: checkoutRequestId,
-                        phone: phone // ⭐ Pass phone for fallback
+                        phone: phone
                     }
                 });
 
@@ -1045,76 +1092,11 @@
                     return;
                 }
 
-                // Timeout after max attempts - Final check
+                // Timeout after max attempts
                 if (attempts >= maxAttempts) {
                     clearInterval(pollingInterval);
                     pollingInterval = null;
                     
-                    // ⭐ Final check: Try to find the payment by phone number
-                    try {
-                        Swal.fire({
-                            icon: 'info',
-                            title: 'Checking Again...',
-                            text: 'One final check for your payment...',
-                            allowOutsideClick: false,
-                            didOpen: () => {
-                                Swal.showLoading();
-                            }
-                        });
-                        
-                        const finalCheck = await axios.get('{{ route("mpesa.status") }}', {
-                            params: {
-                                checkout_request_id: checkoutRequestId,
-                                phone: phone,
-                                force_check: true
-                            }
-                        });
-                        
-                        Swal.close();
-                        
-                        if (finalCheck.data.success && finalCheck.data.resultCode === '0') {
-                            // Found it! Process as successful
-                            console.log('✅ Found payment on final check!');
-                            mpesaConfirmed = true;
-                            
-                            // Update UI
-                            if (finalCheck.data.mpesa_receipt_number) {
-                                const transCode = document.getElementById('mpesa_transaction_code');
-                                const receiptNo = document.getElementById('receipt_no');
-                                const confirmedReceipt = document.getElementById('mpesaConfirmedReceipt');
-                                
-                                if (transCode) transCode.value = finalCheck.data.mpesa_receipt_number;
-                                if (receiptNo) receiptNo.value = finalCheck.data.mpesa_receipt_number;
-                                if (confirmedReceipt) confirmedReceipt.textContent = finalCheck.data.mpesa_receipt_number;
-                            }
-                            
-                            if (mpesaModalInstance) mpesaModalInstance.hide();
-                            
-                            let redirectUrl = '{{ route("fees.index") }}';
-                            if (finalCheck.data.payment_id) {
-                                let url = '{{ route("fees.receipt", ":id") }}';
-                                redirectUrl = url.replace(':id', finalCheck.data.payment_id);
-                            } else if (finalCheck.data.redirect_url) {
-                                redirectUrl = finalCheck.data.redirect_url;
-                            }
-                            
-                            Swal.fire({
-                                icon: 'success',
-                                title: 'Payment Found!',
-                                text: 'Your payment was successful. Redirecting to receipt...',
-                                timer: 1500,
-                                showConfirmButton: false
-                            }).then(() => {
-                                window.location.href = redirectUrl;
-                            });
-                            return;
-                        }
-                    } catch (e) {
-                        Swal.close();
-                        console.error('Final check failed:', e);
-                    }
-                    
-                    // Show "Status Unknown" with options
                     const sendButton = document.getElementById('modal_sendStkPush');
                     if (sendButton) {
                         sendButton.disabled = false;
@@ -1147,10 +1129,8 @@
                         cancelButtonText: 'View Payments'
                     }).then((result) => {
                         if (result.isConfirmed) {
-                            // Retry checking
                             startPolling(checkoutRequestId, phone);
                         } else {
-                            // Go to fees index
                             window.location.href = '{{ route("fees.index") }}';
                         }
                     });

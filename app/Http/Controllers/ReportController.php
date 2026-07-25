@@ -363,11 +363,29 @@ class ReportController extends Controller
         
         switch ($type) {
             case 'fee-collection':
-                $fees = Fee::with('student')->orderBy('payment_date', 'desc')->get();
+                $query = Fee::with('student');
+                
+                if ($request->filled('start_date')) {
+                    $query->whereDate('payment_date', '>=', $request->start_date);
+                }
+                if ($request->filled('end_date')) {
+                    $query->whereDate('payment_date', '<=', $request->end_date);
+                }
+                if ($request->filled('status')) {
+                    $query->where('status', $request->status);
+                }
+                if ($request->filled('term')) {
+                    $query->where('term', $request->term);
+                }
+                if ($request->filled('academic_year')) {
+                    $query->where('academic_year', $request->academic_year);
+                }
+                
+                $fees = $query->orderBy('payment_date', 'desc')->get();
                 $headers = ['Student', 'Amount', 'Status', 'Term', 'Academic Year', 'Payment Date', 'Due Date'];
                 $data = $fees->map(function($fee) {
                     return [
-                        $fee->student->full_name ?? 'N/A',
+                        $fee->student->full_name ?? $fee->student->name ?? 'N/A',
                         $fee->amount,
                         $fee->status,
                         $fee->term ?? 'N/A',
@@ -379,7 +397,7 @@ class ReportController extends Controller
                 break;
                 
             case 'outstanding':
-                $students = Students::with('fees')->get();
+                $students = Students::with(['course', 'fees'])->get();
                 $headers = ['Student', 'Course', 'Total Fees', 'Paid', 'Balance'];
                 $data = $students->filter(function($student) {
                     $total = $student->fees->sum('amount');
@@ -389,8 +407,8 @@ class ReportController extends Controller
                     $total = $student->fees->sum('amount');
                     $paid = $student->fees->where('status', 'paid')->sum('amount');
                     return [
-                        $student->full_name ?? 'N/A',
-                        $student->course->course_name ?? 'N/A',
+                        $student->full_name ?? $student->name ?? 'N/A',
+                        $student->course->course_name ?? $student->course->name ?? 'N/A',
                         $total,
                         $paid,
                         $total - $paid,
@@ -407,7 +425,7 @@ class ReportController extends Controller
                     return back()->with('error', 'Student not found');
                 }
                 $headers = ['Date', 'Amount', 'Status', 'Term', 'Academic Year'];
-                $data = $student->fees->map(function($fee) use ($student) {
+                $data = $student->fees->map(function($fee) {
                     return [
                         $fee->payment_date,
                         $fee->amount,
@@ -419,6 +437,82 @@ class ReportController extends Controller
                 $filename = "student_statement_{$student->full_name}_{$filename}";
                 break;
                 
+            case 'daily-collection':
+                $date = $request->input('date', date('Y-m-d'));
+                $fees = Fee::with('student.course')
+                    ->whereDate('payment_date', $date)
+                    ->orderBy('payment_date', 'desc')
+                    ->get();
+                
+                $headers = ['Date', 'Student Name', 'Admission No', 'Course', 'Amount', 'Status', 'Term', 'Academic Year', 'Payment Date'];
+                $data = $fees->map(function($fee) use ($date) {
+                    return [
+                        $date,
+                        $fee->student->full_name ?? $fee->student->name ?? 'N/A',
+                        $fee->student->admission_number ?? 'N/A',
+                        $fee->student->course->course_name ?? $fee->student->course->name ?? 'N/A',
+                        $fee->amount,
+                        $fee->status,
+                        $fee->term ?? 'N/A',
+                        $fee->academic_year ?? 'N/A',
+                        $fee->payment_date ? date('d-m-Y', strtotime($fee->payment_date)) : 'N/A'
+                    ];
+                })->toArray();
+                $filename = "daily_collection_" . date('Y-m-d', strtotime($date)) . ".csv";
+                break;
+                
+            case 'monthly-collection':
+                $month = $request->input('month', date('n'));
+                $year = $request->input('year', date('Y'));
+                $fees = Fee::with('student.course')
+                    ->whereMonth('payment_date', $month)
+                    ->whereYear('payment_date', $year)
+                    ->orderBy('payment_date', 'desc')
+                    ->get();
+                
+                $headers = ['Date', 'Student Name', 'Admission No', 'Course', 'Amount', 'Status', 'Term', 'Academic Year', 'Payment Date'];
+                $data = $fees->map(function($fee) use ($month, $year) {
+                    return [
+                        $fee->payment_date ? date('d-m-Y', strtotime($fee->payment_date)) : 'N/A',
+                        $fee->student->full_name ?? $fee->student->name ?? 'N/A',
+                        $fee->student->admission_number ?? 'N/A',
+                        $fee->student->course->course_name ?? $fee->student->course->name ?? 'N/A',
+                        $fee->amount,
+                        $fee->status,
+                        $fee->term ?? 'N/A',
+                        $fee->academic_year ?? 'N/A',
+                        $fee->payment_date ? date('d-m-Y', strtotime($fee->payment_date)) : 'N/A'
+                    ];
+                })->toArray();
+                $filename = "monthly_collection_{$year}_{$month}.csv";
+                break;
+                
+            case 'course-revenue':
+                $courses = Course::with('students.fees')->get();
+                $headers = ['Course Name', 'Students', 'Total Revenue', 'Paid', 'Pending', 'Collection Rate'];
+                $data = $courses->map(function($course) {
+                    $students = $course->students;
+                    $totalRevenue = 0;
+                    $paidRevenue = 0;
+                    $pendingRevenue = 0;
+                    
+                    foreach ($students as $student) {
+                        $totalRevenue += $student->fees->sum('amount');
+                        $paidRevenue += $student->fees->where('status', 'paid')->sum('amount');
+                        $pendingRevenue += $student->fees->where('status', 'pending')->sum('amount');
+                    }
+                    
+                    return [
+                        $course->course_name ?? $course->name ?? 'N/A',
+                        $students->count(),
+                        $totalRevenue,
+                        $paidRevenue,
+                        $pendingRevenue,
+                        $totalRevenue > 0 ? round(($paidRevenue / $totalRevenue) * 100, 1) . '%' : '0%',
+                    ];
+                })->toArray();
+                break;
+                
             default:
                 return back()->with('error', 'Invalid report type');
         }
@@ -426,6 +520,10 @@ class ReportController extends Controller
         // Generate CSV
         $callback = function() use ($headers, $data) {
             $handle = fopen('php://output', 'w');
+            
+            // Add UTF-8 BOM for Excel compatibility
+            fprintf($handle, chr(0xEF).chr(0xBB).chr(0xBF));
+            
             fputcsv($handle, $headers);
             foreach ($data as $row) {
                 fputcsv($handle, $row);
@@ -437,5 +535,45 @@ class ReportController extends Controller
             'Content-Type' => 'text/csv',
             'Content-Disposition' => "attachment; filename={$filename}",
         ]);
+    }
+
+    /**
+     * Export Student Statement as PDF
+     */
+    public function exportStudentStatementPDF(Request $request)
+    {
+        $studentId = $request->input('student_id');
+        
+        if (!$studentId) {
+            return redirect()->route('reports.student-statement')
+                ->with('error', 'Please select a student first.');
+        }
+        
+        $selectedStudent = Students::with(['course', 'fees'])->find($studentId);
+        
+        if (!$selectedStudent) {
+            return redirect()->route('reports.student-statement')
+                ->with('error', 'Student not found.');
+        }
+        
+        $studentFees = $selectedStudent->fees()->orderBy('payment_date', 'desc')->get();
+        
+        $data = [
+            'selectedStudent' => $selectedStudent,
+            'studentFees' => $studentFees,
+            'totalFees' => $studentFees->sum('amount'),
+            'totalPaid' => $studentFees->where('status', 'paid')->sum('amount'),
+            'balance' => $studentFees->sum('amount') - $studentFees->where('status', 'paid')->sum('amount'),
+            'pendingAmount' => $studentFees->where('status', 'pending')->sum('amount'),
+            'overdueAmount' => $studentFees->where('status', 'overdue')->sum('amount'),
+            'generatedDate' => now()->format('d-m-Y H:i:s'),
+        ];
+        
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('reports.pdf.student-statement', $data);
+        $pdf->setPaper('A4', 'portrait');
+        
+        $filename = 'student_statement_' . ($selectedStudent->admission_number ?? $selectedStudent->id) . '_' . date('Y-m-d') . '.pdf';
+        
+        return $pdf->download($filename);
     }
 }

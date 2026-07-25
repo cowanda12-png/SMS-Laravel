@@ -71,14 +71,6 @@ Route::middleware('auth')->group(function () {
     Route::get('/courses/export', [CourseController::class, 'export'])->name('courses.export');
 });
 
-// ==================== EXAM EXTRA ROUTES ====================
-Route::middleware('auth')->group(function () {
-    Route::get('/exams/{exam}/results', [ExamController::class, 'results'])->name('exams.results');
-    Route::post('/exams/{exam}/submit', [ExamController::class, 'submit'])->name('exams.submit');
-    Route::get('/exams/{exam}/print', [ExamController::class, 'print'])->name('exams.print');
-    Route::get('/exams/export', [ExamController::class, 'export'])->name('exams.export');
-});
-
 // ==================== PROFILE ROUTES ====================
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
@@ -122,18 +114,19 @@ Route::prefix('api')->middleware('auth')->group(function () {
     Route::get('/students/{id}', [StudentController::class, 'apiShow'])->name('api.students.show');
     Route::get('/courses', [CourseController::class, 'apiIndex'])->name('api.courses');
     Route::get('/courses/{id}', [CourseController::class, 'apiShow'])->name('api.courses.show');
-    Route::get('/exams', [ExamController::class, 'apiIndex'])->name('api.exams');
-    Route::get('/exams/{id}', [ExamController::class, 'apiShow'])->name('api.exams.show');
     Route::get('/fees', [FeeController::class, 'apiIndex'])->name('api.fees');
     Route::get('/fees/stats', [FeeController::class, 'apiStats'])->name('api.fees.stats');
     Route::get('/fees/{id}', [FeeController::class, 'apiShow'])->name('api.fees.show');
     Route::get('/dashboard/stats', [DashboardController::class, 'apiStats'])->name('api.dashboard.stats');
+    // ⭐ REMOVED DUPLICATE: Route::get('/fees/report', [FeeController::class, 'report'])->name('fees.report');
 });
 
 // ==================== REPORT ROUTES ====================
 Route::prefix('reports')->middleware('auth')->group(function () {
     Route::get('/dashboard', [ReportController::class, 'dashboard'])->name('reports.dashboard');
     Route::get('/student-statement', [ReportController::class, 'studentStatement'])->name('reports.student-statement');
+    // ⭐ PDF Export Route
+    Route::get('/student-statement/pdf', [ReportController::class, 'exportStudentStatementPDF'])->name('reports.student-statement.pdf');
     Route::get('/fee-collection', [ReportController::class, 'feeCollection'])->name('reports.fee-collection');
     Route::get('/outstanding-balances', [ReportController::class, 'outstandingBalances'])->name('reports.outstanding-balances');
     Route::get('/course-revenue', [ReportController::class, 'courseRevenue'])->name('reports.course-revenue');
