@@ -287,12 +287,7 @@
                             <i class="fas fa-book" style="width: 18px; text-align: center;"></i> Courses
                         </a>
                     </li>
-                    <li style="margin-bottom: 4px;">
-                        <a href="{{ route('exams.index') }}" class="sidebar-link {{ request()->routeIs('exams.*') ? 'active' : '' }}"
-                           style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; color: {{ request()->routeIs('exams.*') ? '#6c8cff' : 'rgba(255,255,255,0.6)' }}; text-decoration: none; border-radius: 6px; font-size: 0.85rem; transition: all 0.2s ease; background: {{ request()->routeIs('exams.*') ? 'rgba(108, 140, 255, 0.12)' : 'transparent' }};">
-                            <i class="fas fa-pencil-alt" style="width: 18px; text-align: center;"></i> Exams
-                        </a>
-                    </li>
+                    
                     <li style="margin-bottom: 4px;">
                         <a href="{{ route('fees.index') }}" class="sidebar-link {{ request()->routeIs('fees.*') ? 'active' : '' }}"
                            style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; color: {{ request()->routeIs('fees.*') ? '#6c8cff' : 'rgba(255,255,255,0.6)' }}; text-decoration: none; border-radius: 6px; font-size: 0.85rem; transition: all 0.2s ease; background: {{ request()->routeIs('fees.*') ? 'rgba(108, 140, 255, 0.12)' : 'transparent' }};">
