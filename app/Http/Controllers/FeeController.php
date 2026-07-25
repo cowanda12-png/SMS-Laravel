@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
 
 class FeeController extends Controller
 {
@@ -161,6 +162,22 @@ class FeeController extends Controller
      */
     public function store(Request $request)
     {
+        // 🔍 Debug: log exactly what was received before validation,
+        // to catch any invisible whitespace/encoding issues in payment_method.
+        Log::info('📝 Fee store() request received:', [
+            'payment_method_raw' => $request->input('payment_method'),
+            'payment_method_length' => strlen((string) $request->input('payment_method')),
+            'payment_method_bytes' => bin2hex((string) $request->input('payment_method')),
+            'status' => $request->input('status'),
+        ]);
+
+        // Defensive trim in case of stray whitespace/newlines from the hidden field
+        if ($request->has('payment_method')) {
+            $request->merge([
+                'payment_method' => trim((string) $request->input('payment_method')),
+            ]);
+        }
+
         $validated = $request->validate([
             'student_id' => 'required|exists:students,id',
             'amount' => 'required|numeric|min:0.01|max:999999.99',
@@ -785,6 +802,125 @@ class FeeController extends Controller
     }
 
     /**
+     * Get M-Pesa access token, cached to avoid hammering Safaricom's
+     * OAuth endpoint on every request (which triggers Incapsula bot
+     * blocking when called repeatedly, e.g. during status polling).
+     */
+    private function getMpesaAccessToken()
+    {
+        $environment = env('MPESA_ENV', 'sandbox');
+        $cacheKey = 'mpesa_access_token_' . $environment;
+
+        return Cache::remember($cacheKey, 3500, function () use ($environment) {
+            $consumerKey = env('MPESA_CONSUMER_KEY');
+            $consumerSecret = env('MPESA_CONSUMER_SECRET');
+
+            $baseUrl = $environment === 'production'
+                ? 'https://api.safaricom.co.ke'
+                : 'https://sandbox.safaricom.co.ke';
+
+            $tokenResponse = Http::withBasicAuth($consumerKey, $consumerSecret)
+                ->withHeaders([
+                    'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+                ])
+                ->timeout(30)
+                ->get($baseUrl . '/oauth/v1/generate?grant_type=client_credentials');
+
+            if (!$tokenResponse->successful()) {
+                Log::error('M-Pesa Token Error: ' . $tokenResponse->body());
+                throw new \Exception('Failed to get M-Pesa access token');
+            }
+
+            $tokenData = $tokenResponse->json();
+            $accessToken = $tokenData['access_token'] ?? null;
+
+            if (!$accessToken) {
+                Log::error('No access token in response:', $tokenData);
+                throw new \Exception('No access token returned by M-Pesa');
+            }
+
+            Log::info('🔑 Fetched fresh M-Pesa access token (will cache ~58 min)');
+
+            return $accessToken;
+        });
+    }
+
+    /**
+     * Resend M-Pesa STK Push for an existing (unpaid) fee record.
+     */
+    public function resendMpesaPayment(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'fee_id' => 'required|exists:fees,id',
+            ]);
+
+            $fee = Fee::with('student')->findOrFail($validated['fee_id']);
+
+            if ($fee->status === 'paid') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'This payment has already been completed.',
+                ]);
+            }
+
+            if (empty($fee->mpesa_phone)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No M-Pesa phone number is on file for this payment.',
+                ]);
+            }
+
+            $reference = 'PAY-' . $fee->student_id . '-' . time();
+
+            Log::info('🔁 Resending M-Pesa STK Push for fee:', [
+                'fee_id' => $fee->id,
+                'phone' => $fee->mpesa_phone,
+                'amount' => $fee->amount,
+            ]);
+
+            if (!$this->isMpesaConfigured()) {
+                return $this->simulateMpesaPayment($fee->student, $fee->mpesa_phone, $fee->amount, $reference);
+            }
+
+            $response = $this->sendMpesaStkPush($fee->mpesa_phone, $fee->amount, $reference);
+
+            if ($response['success']) {
+                $fee->update([
+                    'status' => 'pending',
+                    'mpesa_checkout_request_id' => $response['checkout_request_id'],
+                ]);
+
+                Log::info('✅ STK Push resent, fee updated:', [
+                    'fee_id' => $fee->id,
+                    'checkout_request_id' => $response['checkout_request_id'],
+                ]);
+
+                return response()->json([
+                    'success' => true,
+                    'checkout_request_id' => $response['checkout_request_id'],
+                    'message' => 'STK Push resent successfully. Please check your phone.',
+                ]);
+            }
+
+            Log::error('❌ Resend STK Push failed:', ['response' => $response]);
+
+            return response()->json([
+                'success' => false,
+                'message' => $response['message'] ?? 'Failed to resend payment request.',
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('M-Pesa Resend Error: ' . $e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to resend payment. Please try again.',
+            ], 500);
+        }
+    }
+
+    /**
      * Send M-Pesa STK Push (Actual Implementation)
      */
     private function sendMpesaStkPush($phone, $amount, $reference)
@@ -823,27 +959,13 @@ class FeeController extends Controller
                 'environment' => $environment
             ]);
 
-            // Get access token
-            $tokenResponse = Http::withBasicAuth($consumerKey, $consumerSecret)
-                ->timeout(30)
-                ->get($baseUrl . '/oauth/v1/generate?grant_type=client_credentials');
-
-            if (!$tokenResponse->successful()) {
-                Log::error('M-Pesa Token Error: ' . $tokenResponse->body());
+            // Get access token (cached to avoid repeated OAuth calls)
+            try {
+                $accessToken = $this->getMpesaAccessToken();
+            } catch (\Exception $e) {
                 return [
                     'success' => false,
                     'message' => 'Failed to authenticate with M-Pesa. Please check your credentials.'
-                ];
-            }
-
-            $tokenData = $tokenResponse->json();
-            $accessToken = $tokenData['access_token'] ?? null;
-            
-            if (!$accessToken) {
-                Log::error('No access token in response:', $tokenData);
-                return [
-                    'success' => false,
-                    'message' => 'Failed to get access token from M-Pesa.'
                 ];
             }
 
@@ -867,6 +989,9 @@ class FeeController extends Controller
             Log::info('📤 Sending STK Push payload:', $stkRequest);
 
             $response = Http::withToken($accessToken)
+                ->withHeaders([
+                    'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+                ])
                 ->timeout(30)
                 ->post($baseUrl . '/mpesa/stkpush/v1/processrequest', $stkRequest);
 
@@ -932,14 +1057,7 @@ class FeeController extends Controller
                 ? 'https://api.safaricom.co.ke' 
                 : 'https://sandbox.safaricom.co.ke';
 
-            $tokenResponse = Http::withBasicAuth($consumerKey, $consumerSecret)
-                ->get($baseUrl . '/oauth/v1/generate?grant_type=client_credentials');
-
-            if (!$tokenResponse->successful()) {
-                throw new \Exception('Failed to get M-Pesa access token');
-            }
-
-            $accessToken = $tokenResponse->json()['access_token'];
+            $accessToken = $this->getMpesaAccessToken();
 
             $timestamp = date('YmdHis');
             $password = base64_encode($shortCode . $passkey . $timestamp);
@@ -952,6 +1070,9 @@ class FeeController extends Controller
             ];
 
             $response = Http::withToken($accessToken)
+                ->withHeaders([
+                    'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+                ])
                 ->timeout(30)
                 ->post($baseUrl . '/mpesa/stkpushquery/v1/query', $queryRequest);
 

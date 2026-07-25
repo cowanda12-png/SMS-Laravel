@@ -111,6 +111,9 @@ Route::middleware('auth')->group(function () {
     
     // ⭐ M-Pesa Payment (alternative endpoint)
     Route::post('/mpesa/payment', [FeeController::class, 'mpesaPayment'])->name('mpesa.payment');
+
+    // ⭐ M-Pesa Resend STK Push (for an existing pending/failed fee record)
+    Route::post('/mpesa/resend', [FeeController::class, 'resendMpesaPayment'])->name('mpesa.resend');
 });
 
 // ==================== API ROUTES ====================

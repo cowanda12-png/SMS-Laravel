@@ -50,8 +50,7 @@ class Fee extends Model
         'due_date' => 'date',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
-        // Removed: 'paid_at' => 'datetime', - column doesn't exist
-        // Removed: 'mpesa_response' => 'array', - column doesn't exist
+        'paid_at' => 'datetime',
     ];
 
     /**
@@ -64,7 +63,7 @@ class Fee extends Model
         'due_date',
         'created_at',
         'updated_at',
-        // Removed: 'paid_at' - column doesn't exist
+        'paid_at',
     ];
 
     // ==================== RELATIONSHIPS ====================
@@ -421,9 +420,12 @@ class Fee extends Model
     }
 
     /**
-     * Get formatted paid date - Removed (paid_at doesn't exist)
+     * Get formatted paid date
      */
-    // public function getFormattedPaidDateAttribute() - REMOVED
+    public function getFormattedPaidDateAttribute()
+    {
+        return $this->paid_at ? $this->paid_at->format('d M Y H:i') : 'N/A';
+    }
 
     /**
      * Get receipt with badge - Removed (receipt_no doesn't exist)
@@ -567,9 +569,12 @@ class Fee extends Model
     }
 
     /**
-     * Check if M-Pesa payment - Removed (payment_method doesn't exist)
+     * Check if M-Pesa payment
      */
-    // public function isMpesaPayment() - REMOVED
+    public function isMpesaPayment(): bool
+    {
+        return $this->payment_method === 'M-Pesa';
+    }
 
     /**
      * Mark fee as paid.
@@ -607,19 +612,48 @@ class Fee extends Model
     // public function generateReceiptNumber() - REMOVED
 
     /**
-     * Get M-Pesa transaction status - Removed (mpesa columns don't exist)
+     * Get M-Pesa transaction status (human readable)
      */
-    // public function getMpesaStatusAttribute() - REMOVED
+    public function getMpesaStatusAttribute()
+    {
+        if ($this->status === 'paid') {
+            return 'Completed';
+        }
+
+        $map = [
+            '0'    => 'Completed',
+            '1032' => 'Cancelled',
+            '1037' => 'Timeout',
+            '2001' => 'Wrong PIN',
+        ];
+
+        if ($this->mpesa_result_code && isset($map[$this->mpesa_result_code])) {
+            return $map[$this->mpesa_result_code];
+        }
+
+        if ($this->mpesa_result_code) {
+            return 'Failed';
+        }
+
+        return 'Pending';
+    }
 
     /**
-     * Get M-Pesa status badge color - Removed (mpesa columns don't exist)
+     * Get M-Pesa status badge color
      */
-    // public function getMpesaStatusColorAttribute() - REMOVED
+    public function getMpesaStatusColorAttribute()
+    {
+        $colors = [
+            'Completed' => 'success',
+            'Cancelled' => 'warning',
+            'Timeout'   => 'info',
+            'Wrong PIN' => 'danger',
+            'Failed'    => 'danger',
+            'Pending'   => 'secondary',
+        ];
 
-    /**
-     * Get M-Pesa status with badge HTML - Removed (mpesa columns don't exist)
-     */
-    // public function getMpesaStatusBadgeAttribute() - REMOVED
+        return $colors[$this->mpesa_status] ?? 'secondary';
+    }
 
     /**
      * Get student details for the receipt - FIXED
@@ -681,7 +715,11 @@ class Fee extends Model
         });
 
         static::updating(function ($fee) {
-            // No action needed for paid_at since column doesn't exist
+            // Auto-set paid_at the moment status transitions to 'paid',
+            // if it hasn't already been set explicitly.
+            if ($fee->isDirty('status') && $fee->status === 'paid' && empty($fee->paid_at)) {
+                $fee->paid_at = now();
+            }
         });
 
         static::deleting(function ($fee) {

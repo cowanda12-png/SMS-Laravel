@@ -195,7 +195,7 @@
                                                 </button>
                                                 <div class="collapse mt-2" id="mpesaResponse">
                                                     <div class="card card-body bg-dark text-white" style="max-height: 200px; overflow-y: auto;">
-                                                        <pre class="mb-0"><code>{{ json_encode($fee->mpesa_response, JSON_PRETTY_PRINT) }}</code></pre>
+                                                        <pre class="mb-0"><code>{{ json_encode(json_decode($fee->mpesa_response), JSON_PRETTY_PRINT) }}</code></pre>
                                                     </div>
                                                 </div>
                                             </div>
