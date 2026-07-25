@@ -53,16 +53,36 @@ class CourseController extends Controller
      */
     public function show(Course $course)
     {
+        // Load students with their fees
         $students = $course->students()->with('fees')->get();
         
+        // Calculate totals
         $totalFees = $students->sum(function($student) {
             return $student->fees->sum('amount') ?? 0;
         });
         $totalPaid = $students->sum(function($student) {
             return $student->fees->where('status', 'paid')->sum('amount') ?? 0;
         });
+        $totalPending = $students->sum(function($student) {
+            return $student->fees->where('status', 'pending')->sum('amount') ?? 0;
+        });
+        $totalOverdue = $students->sum(function($student) {
+            return $student->fees->where('status', 'overdue')->sum('amount') ?? 0;
+        });
         
-        return view('courses.show', compact('course', 'students', 'totalFees', 'totalPaid'));
+        // Calculate collection rate
+        $collectionRate = $totalFees > 0 ? round(($totalPaid / $totalFees) * 100, 1) : 0;
+        
+        $stats = [
+            'total_students' => $students->count(),
+            'total_fees' => $totalFees,
+            'total_paid' => $totalPaid,
+            'total_pending' => $totalPending,
+            'total_overdue' => $totalOverdue,
+            'collection_rate' => $collectionRate,
+        ];
+        
+        return view('courses.show', compact('course', 'students', 'stats'));
     }
 
     /**
@@ -166,12 +186,20 @@ class CourseController extends Controller
             'student_id' => 'required|exists:students,id',
         ]);
 
-        $student = Students::findOrFail($validated['student_id']);
+        $student = Students::with('course')->findOrFail($validated['student_id']);
         
-        // Check if student is already assigned
+        // Check if student is already assigned to this course
         if ($student->course_id == $course->id) {
             return redirect()->route('courses.students', $course)
                              ->with('info', "Student '{$student->name}' is already assigned to this course.");
+        }
+        
+        // Check if student is assigned to another course
+        if ($student->course_id) {
+            $oldCourse = $student->course->course_name ?? 'another course';
+            return redirect()->route('courses.students', $course)
+                             ->with('warning', "Student '{$student->name}' is currently assigned to '{$oldCourse}'. Do you want to reassign?")
+                             ->with('student_id', $student->id);
         }
         
         $student->update(['course_id' => $course->id]);
@@ -260,12 +288,17 @@ class CourseController extends Controller
                 'total_paid' => $student->fees->where('status', 'paid')->sum('amount') ?? 0,
                 'total_pending' => $student->fees->where('status', 'pending')->sum('amount') ?? 0,
                 'total_overdue' => $student->fees->where('status', 'overdue')->sum('amount') ?? 0,
+                'outstanding_balance' => $student->fees->sum('amount') - $student->fees->where('status', 'paid')->sum('amount'),
+                'payment_percentage' => $student->fees->sum('amount') > 0 
+                    ? round(($student->fees->where('status', 'paid')->sum('amount') / $student->fees->sum('amount')) * 100, 1) 
+                    : 0,
             ];
         });
         
         return response()->json([
             'success' => true,
             'course' => $course->name,
+            'course_id' => $course->id,
             'total_students' => $students->count(),
             'students' => $students,
         ]);
@@ -295,6 +328,89 @@ class CourseController extends Controller
         return response()->json([
             'success' => true,
             'data' => $course,
+        ]);
+    }
+
+    /**
+     * Get course statistics for dashboard.
+     */
+    public function stats()
+    {
+        $totalCourses = Course::count();
+        $activeCourses = Course::where('status', 'active')->count();
+        $inactiveCourses = Course::where('status', 'inactive')->count();
+        $pendingCourses = Course::where('status', 'pending')->count();
+        
+        $totalStudents = Students::count();
+        $studentsWithCourses = Students::whereNotNull('course_id')->count();
+        $studentsWithoutCourses = $totalStudents - $studentsWithCourses;
+        
+        // Get course with most students
+        $topCourse = Course::withCount('students')
+                           ->orderBy('students_count', 'desc')
+                           ->first();
+        
+        // Get total revenue by course
+        $courses = Course::with('students.fees')->get();
+        $revenueByCourse = $courses->map(function($course) {
+            $total = 0;
+            foreach ($course->students as $student) {
+                $total += $student->fees->sum('amount') ?? 0;
+            }
+            return [
+                'course' => $course->course_name,
+                'revenue' => $total,
+            ];
+        })->sortByDesc('revenue')->values();
+        
+        return response()->json([
+            'success' => true,
+            'stats' => [
+                'total_courses' => $totalCourses,
+                'active_courses' => $activeCourses,
+                'inactive_courses' => $inactiveCourses,
+                'pending_courses' => $pendingCourses,
+                'total_students' => $totalStudents,
+                'students_with_courses' => $studentsWithCourses,
+                'students_without_courses' => $studentsWithoutCourses,
+                'top_course' => $topCourse ? [
+                    'id' => $topCourse->id,
+                    'name' => $topCourse->course_name,
+                    'students_count' => $topCourse->students_count,
+                ] : null,
+                'revenue_by_course' => $revenueByCourse,
+            ]
+        ]);
+    }
+
+    /**
+     * Get available students (not assigned to any course) for assignment.
+     */
+    public function availableStudents()
+    {
+        $students = Students::whereNull('course_id')
+                            ->orWhere('course_id', 0)
+                            ->orderBy('first_name')
+                            ->orderBy('last_name')
+                            ->get(['id', 'first_name', 'last_name', 'admission_number', 'email']);
+        
+        return response()->json([
+            'success' => true,
+            'students' => $students,
+        ]);
+    }
+
+    /**
+     * Get students by course for API.
+     */
+    public function getStudentsByCourse($courseId)
+    {
+        $course = Course::with('students')->findOrFail($courseId);
+        
+        return response()->json([
+            'success' => true,
+            'course' => $course->course_name,
+            'students' => $course->students,
         ]);
     }
 }
