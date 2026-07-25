@@ -36,16 +36,58 @@
                                 <tr>
                                     <th width="30%" class="bg-light">Student Name</th>
                                     <td width="70%">
-                                        <strong>{{ $fee->student_name ?? session('payment_success.student_name', 'N/A') }}</strong>
+                                        <strong>
+                                            @php
+                                                // Get student name directly from database if accessor fails
+                                                $studentName = $fee->student_name ?? 'N/A';
+                                                if ($studentName === 'N/A' || $studentName === 'Unknown Student' || $studentName === 'Student Not Found') {
+                                                    try {
+                                                        $student = \App\Models\Students::find($fee->student_id);
+                                                        $studentName = $student->name ?? 'N/A';
+                                                    } catch (\Exception $e) {
+                                                        $studentName = 'N/A';
+                                                    }
+                                                }
+                                            @endphp
+                                            {{ $studentName }}
+                                        </strong>
                                     </td>
                                 </tr>
                                 <tr>
                                     <th class="bg-light">Admission Number</th>
-                                    <td>{{ $fee->student_admission ?? 'N/A' }}</td>
+                                    <td>
+                                        @php
+                                            $admission = $fee->student_admission ?? 'N/A';
+                                            if ($admission === 'N/A') {
+                                                try {
+                                                    $student = \App\Models\Students::find($fee->student_id);
+                                                    $admission = $student->admission_number ?? 'N/A';
+                                                } catch (\Exception $e) {
+                                                    $admission = 'N/A';
+                                                }
+                                            }
+                                        @endphp
+                                        {{ $admission }}
+                                    </td>
                                 </tr>
                                 <tr>
                                     <th class="bg-light">Course</th>
-                                    <td>{{ $fee->student_course ?? 'N/A' }}</td>
+                                    <td>
+                                        @php
+                                            $course = $fee->student_course ?? 'N/A';
+                                            if ($course === 'N/A' || $course === 'Not Assigned') {
+                                                try {
+                                                    $student = \App\Models\Students::with('course')->find($fee->student_id);
+                                                    if ($student && $student->course) {
+                                                        $course = $student->course->course_name ?? $student->course->name ?? 'Not Assigned';
+                                                    }
+                                                } catch (\Exception $e) {
+                                                    $course = 'Not Assigned';
+                                                }
+                                            }
+                                        @endphp
+                                        {{ $course }}
+                                    </td>
                                 </tr>
                                 <tr>
                                     <th class="bg-light">Amount Paid</th>
@@ -67,7 +109,7 @@
                                 <tr>
                                     <th class="bg-light">Payment Method</th>
                                     <td>
-                                        @if(isset($fee) && $fee->isMpesaPayment())
+                                        @if(isset($fee) && method_exists($fee, 'isMpesaPayment') && $fee->isMpesaPayment())
                                             <span class="badge bg-success">
                                                 <i class="fas fa-mobile-alt me-1"></i> M-Pesa
                                             </span>
@@ -128,7 +170,7 @@
                     </div>
 
                     <!-- M-Pesa Transaction Details -->
-                    @if(isset($fee) && $fee->isMpesaPayment() && $fee->mpesa_transaction_code)
+                    @if(isset($fee) && method_exists($fee, 'isMpesaPayment') && $fee->isMpesaPayment() && $fee->mpesa_transaction_code)
                     <div class="card border-success mt-3 mt-sm-4">
                         <div class="card-header bg-success text-white py-2">
                             <i class="fas fa-mobile-alt me-1"></i> M-Pesa Transaction Details

@@ -25,18 +25,18 @@ class Fee extends Model
         'term',
         'academic_year',
         'payment_method',
-         'fee_type',
+        'fee_type',
         'description',
-         'receipt_no',
-         'paid_at',
+        'receipt_no',
+        'paid_at',
         'mpesa_phone',
-         'mpesa_transaction_code',
-         'mpesa_checkout_request_id',
+        'mpesa_transaction_code',
+        'mpesa_checkout_request_id',
         'mpesa_result_code',
-         'mpesa_response',
-         'account_reference',
-         'mpesa_result_desc',
-         'completed_at',
+        'mpesa_response',
+        'account_reference',
+        'mpesa_result_desc',
+        'completed_at',
     ];
 
     /**
@@ -51,6 +51,7 @@ class Fee extends Model
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'paid_at' => 'datetime',
+        'completed_at' => 'datetime',
     ];
 
     /**
@@ -64,6 +65,7 @@ class Fee extends Model
         'created_at',
         'updated_at',
         'paid_at',
+        'completed_at',
     ];
 
     // ==================== RELATIONSHIPS ====================
@@ -103,7 +105,7 @@ class Fee extends Model
     // ==================== ACCESSORS ====================
 
     /**
-     * Get student's full name - FIXED to use 'name' column
+     * Get student's name - FIXED to use 'name' column
      */
     public function getStudentNameAttribute()
     {
@@ -120,14 +122,12 @@ class Fee extends Model
     }
 
     /**
-     * Get student's name - FIXED to use 'name' column
+     * Get student's first name - FIXED to use 'name' column
      */
     public function getStudentFirstNameAttribute()
     {
-        // Since your Students table uses 'name' instead of 'first_name'
         if ($this->relationLoaded('student') && $this->student) {
             $name = $this->student->name ?? 'Unknown';
-            // Split name to get first part as first name
             $parts = explode(' ', $name);
             return $parts[0] ?? 'Unknown';
         }
@@ -172,12 +172,14 @@ class Fee extends Model
      */
     public function getStudentCourseAttribute()
     {
+        // Try via relation
         if ($this->relationLoaded('student') && $this->student) {
             if ($this->student->relationLoaded('course')) {
                 return $this->student->course->course_name ?? $this->student->course->name ?? 'Not Assigned';
             }
         }
         
+        // Try via direct query
         try {
             $student = Students::with('course')->find($this->student_id);
             if ($student && $student->course) {
@@ -331,21 +333,6 @@ class Fee extends Model
     }
 
     /**
-     * Get payment method with icon HTML - Removed (payment_method doesn't exist)
-     */
-    // public function getPaymentMethodWithIconAttribute() - REMOVED
-
-    /**
-     * Get payment method icon class - Removed (payment_method doesn't exist)
-     */
-    // public function getPaymentMethodIconAttribute() - REMOVED
-
-    /**
-     * Get payment method badge color - Removed (payment_method doesn't exist)
-     */
-    // public function getPaymentMethodColorAttribute() - REMOVED
-
-    /**
      * Get M-Pesa transaction status.
      */
     public function getMpesaTransactionStatusAttribute()
@@ -427,11 +414,6 @@ class Fee extends Model
         return $this->paid_at ? $this->paid_at->format('d M Y H:i') : 'N/A';
     }
 
-    /**
-     * Get receipt with badge - Removed (receipt_no doesn't exist)
-     */
-    // public function getReceiptBadgeAttribute() - REMOVED
-
     // ==================== SCOPES ====================
 
     /**
@@ -441,11 +423,6 @@ class Fee extends Model
     {
         return $query->whereBetween('payment_date', [$startDate, $endDate]);
     }
-
-    /**
-     * Scope: Filter by payment method - Removed (payment_method doesn't exist)
-     */
-    // public function scopeByMethod($query, $method) - REMOVED
 
     /**
      * Scope: Today's payments.
@@ -495,11 +472,6 @@ class Fee extends Model
     {
         return $query->where('status', $status);
     }
-
-    /**
-     * Scope: M-Pesa payments - Removed (payment_method doesn't exist)
-     */
-    // public function scopeMpesa($query) - REMOVED
 
     /**
      * Scope: Search by student name.
@@ -556,11 +528,6 @@ class Fee extends Model
     }
 
     /**
-     * Check if fee is cancelled - Removed (cancelled status not in your schema)
-     */
-    // public function isCancelled() - REMOVED
-
-    /**
      * Check if fee has an M-Pesa transaction.
      */
     public function hasMpesaTransaction()
@@ -573,7 +540,7 @@ class Fee extends Model
      */
     public function isMpesaPayment(): bool
     {
-        return $this->payment_method === 'M-Pesa';
+        return $this->payment_method === 'M-Pesa' || $this->payment_method === 'Mpesa';
     }
 
     /**
@@ -583,6 +550,7 @@ class Fee extends Model
     {
         $this->update([
             'status' => 'paid',
+            'paid_at' => now(),
         ]);
     }
 
@@ -605,11 +573,6 @@ class Fee extends Model
             'status' => 'pending',
         ]);
     }
-
-    /**
-     * Generate receipt number - Removed (receipt_no doesn't exist)
-     */
-    // public function generateReceiptNumber() - REMOVED
 
     /**
      * Get M-Pesa transaction status (human readable)
@@ -674,6 +637,7 @@ class Fee extends Model
                     'course' => $student->course->course_name ?? $student->course->name ?? 'Not Assigned',
                     'phone' => $student->phone ?? '',
                     'email' => $student->email ?? 'N/A',
+                    'id' => $student->id,
                 ];
             }
             
@@ -683,6 +647,7 @@ class Fee extends Model
                 'course' => 'Not Assigned',
                 'phone' => '',
                 'email' => 'N/A',
+                'id' => $this->student_id,
             ];
         } catch (\Exception $e) {
             return [
@@ -691,6 +656,7 @@ class Fee extends Model
                 'course' => 'Not Assigned',
                 'phone' => '',
                 'email' => 'N/A',
+                'id' => $this->student_id,
             ];
         }
     }
@@ -712,11 +678,15 @@ class Fee extends Model
             if (empty($fee->due_date) && !empty($fee->payment_date)) {
                 $fee->due_date = Carbon::parse($fee->payment_date)->addDays(30);
             }
+
+            // Set receipt number if not provided
+            if (empty($fee->receipt_no)) {
+                $fee->receipt_no = 'RCP-' . date('Ymd') . '-' . str_pad(rand(1000, 9999), 4, '0', STR_PAD_LEFT);
+            }
         });
 
         static::updating(function ($fee) {
-            // Auto-set paid_at the moment status transitions to 'paid',
-            // if it hasn't already been set explicitly.
+            // Auto-set paid_at the moment status transitions to 'paid'
             if ($fee->isDirty('status') && $fee->status === 'paid' && empty($fee->paid_at)) {
                 $fee->paid_at = now();
             }

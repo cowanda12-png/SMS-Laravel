@@ -166,7 +166,7 @@
                         <option value="">All</option>
                         @foreach($students ?? [] as $student)
                             <option value="{{ $student->id }}" {{ request('student_id') == $student->id ? 'selected' : '' }}>
-                                {{ trim(($student->first_name ?? '') . ' ' . ($student->last_name ?? '')) }}
+                                {{ $student->name ?? 'N/A' }}
                             </option>
                         @endforeach
                     </select>
@@ -247,13 +247,36 @@
                         </thead>
                         <tbody>
                             @foreach($fees as $fee)
+                                @php
+                                    // Get student name with fallback
+                                    $studentName = $fee->student_name ?? 'N/A';
+                                    if ($studentName === 'N/A' || $studentName === 'Unknown Student' || $studentName === 'Student Not Found') {
+                                        try {
+                                            $student = \App\Models\Students::find($fee->student_id);
+                                            $studentName = $student->name ?? 'N/A';
+                                        } catch (\Exception $e) {
+                                            $studentName = 'N/A';
+                                        }
+                                    }
+                                    
+                                    // Get admission number with fallback
+                                    $admission = $fee->student_admission ?? 'N/A';
+                                    if ($admission === 'N/A') {
+                                        try {
+                                            $student = \App\Models\Students::find($fee->student_id);
+                                            $admission = $student->admission_number ?? 'N/A';
+                                        } catch (\Exception $e) {
+                                            $admission = 'N/A';
+                                        }
+                                    }
+                                @endphp
                                 <tr>
                                     <td class="ps-3">
                                         <span class="fw-semibold small">{{ $fee->receipt_no ?? 'N/A' }}</span>
                                     </td>
                                     <td>
-                                        <div class="fw-semibold">{{ $fee->student_name ?? 'N/A' }}</div>
-                                        <div class="text-muted small d-none d-sm-block">{{ $fee->student_admission ?? '' }}</div>
+                                        <div class="fw-semibold">{{ $studentName }}</div>
+                                        <div class="text-muted small d-none d-sm-block">{{ $admission }}</div>
                                     </td>
                                     <td class="text-end fw-semibold">KES {{ number_format($fee->amount, 0) }}</td>
                                     <td class="d-none d-md-table-cell">

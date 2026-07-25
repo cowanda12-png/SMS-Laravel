@@ -57,10 +57,28 @@
                                         <div class="col-8">{{ $fee->student_course ?? 'Not Assigned' }}</div>
                                         
                                         <div class="col-4 text-muted small">Email:</div>
-                                        <div class="col-8" style="word-break: break-all;">{{ $fee->student->email ?? 'N/A' }}</div>
+                                        <div class="col-8" style="word-break: break-all;">
+                                            @if(isset($fee->student) && $fee->student)
+                                                {{ $fee->student->email ?? 'N/A' }}
+                                            @else
+                                                @php
+                                                    $student = \App\Models\Students::find($fee->student_id);
+                                                @endphp
+                                                {{ $student->email ?? 'N/A' }}
+                                            @endif
+                                        </div>
                                         
                                         <div class="col-4 text-muted small">Phone:</div>
-                                        <div class="col-8">{{ $fee->student->phone ?? 'N/A' }}</div>
+                                        <div class="col-8">
+                                            @if(isset($fee->student) && $fee->student)
+                                                {{ $fee->student->phone ?? 'N/A' }}
+                                            @else
+                                                @php
+                                                    $student = \App\Models\Students::find($fee->student_id);
+                                                @endphp
+                                                {{ $student->phone ?? 'N/A' }}
+                                            @endif
+                                        </div>
                                         
                                         <div class="col-4 text-muted small">Student ID:</div>
                                         <div class="col-8"><span class="badge bg-secondary">{{ $fee->student_id }}</span></div>
