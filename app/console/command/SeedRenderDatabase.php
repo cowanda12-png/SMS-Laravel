@@ -1,23 +1,25 @@
 <?php
 
-namespace Database\Seeders;
+namespace App\Console\Commands;
 
-use Illuminate\Database\Seeder;
+use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
-class RenderDatabaseSeeder extends Seeder
+class SeedRenderDatabase extends Command
 {
-    public function run(): void
+    protected $signature = 'seed:render';
+    protected $description = 'Seed the Render PostgreSQL database with sample data';
+
+    public function handle()
     {
-        $this->command->info('🌱 Seeding Render PostgreSQL Database...');
+        $this->info('🌱 Seeding Render PostgreSQL Database...');
         
-        // ========== GET COURSE IDs ==========
-        // First, check if courses exist, if not, create them
+        // ========== SEED COURSES ==========
         $courseCount = DB::table('courses')->count();
         
         if ($courseCount == 0) {
-            $this->command->info('📚 Seeding courses...');
+            $this->info('📚 Seeding courses...');
             
             $courses = [
                 ['course_name' => 'Computer Science', 'description' => 'Bachelor of Science in Computer Science', 'credits' => 120, 'status' => 'active', 'created_at' => now(), 'updated_at' => now()],
@@ -33,27 +35,31 @@ class RenderDatabaseSeeder extends Seeder
             ];
 
             foreach ($courses as $course) {
-                DB::table('courses')->insert($course);
+                try {
+                    DB::table('courses')->insert($course);
+                } catch (\Exception $e) {
+                    // Skip if duplicate
+                }
             }
             
-            $this->command->info('✅ 10 courses seeded successfully!');
+            $this->info('✅ ' . count($courses) . ' courses seeded!');
         } else {
-            $this->command->info('📚 Courses already exist (' . $courseCount . ' found)');
+            $this->info('📚 Courses already exist (' . $courseCount . ' found)');
         }
 
         // ========== GET COURSE IDs ==========
         $courseIds = DB::table('courses')->pluck('id')->toArray();
         
         if (empty($courseIds)) {
-            $this->command->error('❌ No courses found.');
-            return;
+            $this->error('❌ No courses found.');
+            return 1;
         }
 
         // ========== SEED STUDENTS ==========
         $studentCount = DB::table('students')->count();
         
         if ($studentCount == 0) {
-            $this->command->info('👨‍🎓 Seeding students...');
+            $this->info('👨‍🎓 Seeding students...');
 
             $students = [
                 ['admission_number' => 'ADM-2024-001', 'first_name' => 'Collins', 'last_name' => 'Owanda', 'email' => 'collins.owanda@example.com', 'phone' => '+254712345678', 'address' => '123 Unity Road, Nairobi, Kenya', 'class_id' => null, 'course_id' => $courseIds[0] ?? 1, 'status' => 'active', 'registration_number' => 'REG-2024-001', 'created_at' => now(), 'updated_at' => now()],
@@ -69,25 +75,29 @@ class RenderDatabaseSeeder extends Seeder
             ];
 
             foreach ($students as $student) {
-                DB::table('students')->insert($student);
+                try {
+                    DB::table('students')->insert($student);
+                } catch (\Exception $e) {
+                    // Skip if duplicate
+                }
             }
 
-            $this->command->info('✅ 10 students seeded successfully!');
+            $this->info('✅ ' . count($students) . ' students seeded!');
         } else {
-            $this->command->info('👨‍🎓 Students already exist (' . $studentCount . ' found)');
+            $this->info('👨‍🎓 Students already exist (' . $studentCount . ' found)');
         }
 
         // ========== SEED FEES ==========
         $feeCount = DB::table('fees')->count();
         
         if ($feeCount < 10) {
-            $this->command->info('💰 Seeding fees...');
+            $this->info('💰 Seeding fees...');
 
             $studentIds = DB::table('students')->pluck('id')->toArray();
             
             if (empty($studentIds)) {
-                $this->command->warn('⚠️ No students found. Skipping fees.');
-                return;
+                $this->warn('⚠️ No students found. Skipping fees.');
+                return 0;
             }
 
             $feeStatuses = ['paid', 'unpaid', 'partial'];
@@ -107,36 +117,40 @@ class RenderDatabaseSeeder extends Seeder
                     : null;
                 $dueDate = Carbon::now()->addDays(rand(1, 60))->format('Y-m-d');
                 
-                DB::table('fees')->insert([
-                    'student_id' => $studentId,
-                    'amount' => $amount,
-                    'payment_date' => $paymentDate,
-                    'due_date' => $dueDate,
-                    'status' => $status,
-                    'term' => 'Term ' . rand(1, 3) . ' ' . date('Y'),
-                    'academic_year' => date('Y'),
-                    'payment_method' => $status === 'paid' ? $paymentMethods[array_rand($paymentMethods)] : null,
-                    'fee_type' => $feeTypes[array_rand($feeTypes)],
-                    'description' => 'Fee payment',
-                    'receipt_no' => 'RCP-' . date('Ymd') . '-' . str_pad(rand(1, 9999), 4, '0', STR_PAD_LEFT),
-                    'paid_at' => $status === 'paid' ? now() : null,
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ]);
-                $feeCounter++;
+                try {
+                    DB::table('fees')->insert([
+                        'student_id' => $studentId,
+                        'amount' => $amount,
+                        'payment_date' => $paymentDate,
+                        'due_date' => $dueDate,
+                        'status' => $status,
+                        'term' => 'Term ' . rand(1, 3) . ' ' . date('Y'),
+                        'academic_year' => date('Y'),
+                        'payment_method' => $status === 'paid' ? $paymentMethods[array_rand($paymentMethods)] : null,
+                        'fee_type' => $feeTypes[array_rand($feeTypes)],
+                        'description' => 'Fee payment',
+                        'receipt_no' => 'RCP-' . date('Ymd') . '-' . str_pad(rand(1, 9999), 4, '0', STR_PAD_LEFT),
+                        'paid_at' => $status === 'paid' ? now() : null,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                    $feeCounter++;
+                } catch (\Exception $e) {
+                    // Skip if error
+                }
             }
 
-            $this->command->info('✅ ' . $feeCounter . ' fees seeded successfully!');
+            $this->info('✅ ' . $feeCounter . ' fees seeded!');
         } else {
-            $this->command->info('💰 Fees already exist (' . $feeCount . ' found)');
+            $this->info('💰 Fees already exist (' . $feeCount . ' found)');
         }
         
-        $this->command->info('🎉 Database seeding completed successfully!');
+        $this->info('🎉 Database seeding completed!');
+        $this->info('📊 Summary:');
+        $this->info('   - Courses: ' . DB::table('courses')->count());
+        $this->info('   - Students: ' . DB::table('students')->count());
+        $this->info('   - Fees: ' . DB::table('fees')->count());
         
-        // Show summary
-        $this->command->info('📊 Summary:');
-        $this->command->info('   - Courses: ' . DB::table('courses')->count());
-        $this->command->info('   - Students: ' . DB::table('students')->count());
-        $this->command->info('   - Fees: ' . DB::table('fees')->count());
+        return 0;
     }
 }
