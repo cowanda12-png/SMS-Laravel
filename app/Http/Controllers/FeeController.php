@@ -81,8 +81,8 @@ class FeeController extends Controller
         $overdueCount = Fee::where('status', 'overdue')->count() ?? 0;
         
         // Get distinct values for filters
-        $paymentMethods = collect();
-        $feeTypes = collect();
+        $paymentMethods = Fee::distinct()->whereNotNull('payment_method')->pluck('payment_method')->filter()->values();
+        $feeTypes = Fee::distinct()->whereNotNull('fee_type')->pluck('fee_type')->filter()->values();
         $statuses = ['paid', 'pending', 'overdue'];
         $terms = Fee::distinct()->whereNotNull('term')->pluck('term')->filter()->values();
         $academicYears = Fee::distinct()->whereNotNull('academic_year')->pluck('academic_year')->filter()->values();
