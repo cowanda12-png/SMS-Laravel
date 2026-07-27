@@ -3,6 +3,9 @@
 
 namespace App\Models;
 
+use App\Models\Classes;
+use App\Models\Grade;
+use App\Models\Students; // Import Students model (plural)
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -75,6 +78,7 @@ class FeeStructure extends Model
     // Helper Methods
     public static function getFeesForStudent($studentId, $term, $academicYear)
     {
+        // Fixed: Use Students model with proper namespace
         $student = Students::with(['class', 'grade'])->find($studentId);
         if (!$student) {
             return collect();
@@ -91,6 +95,37 @@ class FeeStructure extends Model
     public static function getTotalFeesForStudent($studentId, $term, $academicYear)
     {
         return self::getFeesForStudent($studentId, $term, $academicYear)
+            ->sum('amount');
+    }
+
+    // Additional Helper Methods
+    public static function getFeesByClass($classId, $term, $academicYear)
+    {
+        return self::active()
+            ->where('class_id', $classId)
+            ->where('term', $term)
+            ->where('academic_year', $academicYear)
+            ->get();
+    }
+
+    public static function getFeesByGrade($gradeId, $term, $academicYear)
+    {
+        return self::active()
+            ->where('grade_id', $gradeId)
+            ->where('term', $term)
+            ->where('academic_year', $academicYear)
+            ->get();
+    }
+
+    public static function getTotalFeesByClass($classId, $term, $academicYear)
+    {
+        return self::getFeesByClass($classId, $term, $academicYear)
+            ->sum('amount');
+    }
+
+    public static function getTotalFeesByGrade($gradeId, $term, $academicYear)
+    {
+        return self::getFeesByGrade($gradeId, $term, $academicYear)
             ->sum('amount');
     }
 }

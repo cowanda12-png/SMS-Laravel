@@ -53,6 +53,7 @@ Route::resource('students', StudentController::class)->middleware('auth');
 Route::resource('courses', CourseController::class)->middleware('auth');
 Route::resource('exams', ExamController::class)->middleware('auth');
 Route::resource('fees', FeeController::class)->middleware('auth');
+Route::resource('fee-structures', FeeStructureController::class)->middleware('auth');
 
 // ==================== FEE EXTRA ROUTES ====================
 Route::middleware('auth')->group(function () {
@@ -65,17 +66,24 @@ Route::middleware('auth')->group(function () {
     Route::get('/fees/export', [FeeController::class, 'export'])->name('fees.export');
     Route::get('/fees/receipt/{id}', [FeeController::class, 'showReceipt'])->name('fees.receipt');
 
-    // Fee Structure Routes
-Route::resource('fee-structures', FeeStructureController::class);
+    // Update existing fee routes
+    Route::get('/fees/calculate-expected/{studentId}/{term}/{academicYear}', [FeeController::class, 'calculateExpected'])
+        ->name('fees.calculate-expected');
 
-// Update existing fee routes
-Route::get('/fees/calculate-expected/{studentId}/{term}/{academicYear}', [FeeController::class, 'calculateExpected'])
-    ->name('fees.calculate-expected');
+    Route::get('/fees/get-fee-structures/{studentId}/{term}/{academicYear}', [FeeController::class, 'getFeeStructures'])
+        ->name('fees.get-fee-structures');
+});
 
-Route::get('/fees/get-fee-structures/{studentId}/{term}/{academicYear}', [FeeController::class, 'getFeeStructures'])
-    ->name('fees.get-fee-structures');
-
-Route::resource('fees', FeeController::class);
+// ==================== FEE STRUCTURE EXTRA ROUTES ====================
+Route::middleware('auth')->group(function () {
+    Route::get('/fee-structures/class/{classId}', [FeeStructureController::class, 'getFeesByClass'])
+        ->name('fee-structures.by-class');
+    Route::get('/fee-structures/grade/{gradeId}', [FeeStructureController::class, 'getFeesByGrade'])
+        ->name('fee-structures.by-grade');
+    Route::post('/fee-structures/toggle-status/{id}', [FeeStructureController::class, 'toggleStatus'])
+        ->name('fee-structures.toggle-status');
+    Route::delete('/fee-structures/bulk-delete', [FeeStructureController::class, 'bulkDelete'])
+        ->name('fee-structures.bulk-delete');
 });
 
 // ==================== COURSE EXTRA ROUTES ====================

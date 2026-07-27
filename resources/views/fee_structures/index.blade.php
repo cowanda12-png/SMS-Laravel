@@ -14,9 +14,7 @@
             </h4>
             <p class="text-muted small mb-0">Manage fees by class, grade, term, and academic year</p>
         </div>
-        <a href="{{ route('fee-structures.create') }}" class="btn btn-primary btn-sm">
-            <i class="fas fa-plus-circle me-1"></i> Add Fee Structure
-        </a>
+        
     </div>
 
     @if(session('success'))
