@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Students;
 use App\Models\Course;
+use App\Models\Fee;
+use App\Models\FeeStructure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -42,8 +44,22 @@ class StudentController extends Controller
             'phone' => 'nullable|string|max:20',
             'course_id' => 'nullable|exists:courses,id',
             'status' => 'nullable|in:active,inactive,pending,graduated',
-            'address' => 'nullable|string'
+            'address' => 'nullable|string',
+            'date_of_birth' => 'nullable|date',
+            'gender' => 'nullable|in:male,female,other',
+            'alternate_phone' => 'nullable|string|max:20',
+            'guardian_name' => 'nullable|string|max:255',
+            'guardian_phone' => 'nullable|string|max:20',
+            'guardian_email' => 'nullable|email|max:255',
+            'enrollment_date' => 'nullable|date',
+            'profile_image' => 'nullable|image|max:2048',
         ]);
+
+        // Handle profile image upload if present
+        if ($request->hasFile('profile_image')) {
+            $path = $request->file('profile_image')->store('students', 'public');
+            $validated['profile_image'] = $path;
+        }
 
         Students::create($validated);
 
@@ -56,6 +72,64 @@ class StudentController extends Controller
      */
     public function show(Students $student)
     {
+        // Load relationships
+        $student->load([
+            'course', 
+            'class', 
+            'grade',
+            'payments' => function($query) {
+                $query->orderBy('created_at', 'desc');
+            },
+            'feeStructures' => function($query) {
+                $query->where('status', 'active');
+            }
+        ]);
+
+        // Get or calculate fee structures if not directly related
+        if ($student->feeStructures->isEmpty()) {
+            // Try to get fee structures based on class and grade
+            $feeStructures = FeeStructure::where('status', 'active')
+                ->where(function($query) use ($student) {
+                    $query->where('class_id', $student->class_id)
+                          ->orWhereNull('class_id');
+                })
+                ->where(function($query) use ($student) {
+                    $query->where('grade_id', $student->grade_id)
+                          ->orWhereNull('grade_id');
+                })
+                ->get();
+            
+            $student->setRelation('feeStructures', $feeStructures);
+        }
+
+        // Calculate financial data
+        $student->total_fees = $student->feeStructures->sum('amount') ?? 0;
+        
+        // Get paid amount from payments
+        $student->total_paid = $student->payments->where('status', 'paid')->sum('amount') ?? 0;
+        
+        // Calculate balance
+        $student->balance = $student->total_fees - $student->total_paid;
+        
+        // Determine payment status
+        if ($student->balance <= 0 && $student->total_fees > 0) {
+            $student->payment_status = 'paid';
+        } elseif ($student->balance > 0 && $student->balance < $student->total_fees) {
+            // Check if any payments are overdue
+            $hasOverdue = $student->payments->where('status', 'overdue')->count() > 0;
+            $student->payment_status = $hasOverdue ? 'overdue' : 'partial';
+        } elseif ($student->balance > 0 && $student->total_fees == 0) {
+            $student->payment_status = 'pending';
+        } else {
+            $student->payment_status = 'pending';
+        }
+
+        // Counts for quick stats
+        $student->courses_count = $student->course ? 1 : 0;
+        $student->payments_count = $student->payments->count();
+        $student->overdue_count = $student->payments->where('status', 'overdue')->count();
+        $student->exams_count = $student->exams_count ?? 0;
+
         return view('students.show', compact('student'));
     }
 
@@ -81,8 +155,26 @@ class StudentController extends Controller
             'phone' => 'nullable|string|max:20',
             'course_id' => 'nullable|exists:courses,id',
             'status' => 'nullable|in:active,inactive,pending,graduated',
-            'address' => 'nullable|string'
+            'address' => 'nullable|string',
+            'date_of_birth' => 'nullable|date',
+            'gender' => 'nullable|in:male,female,other',
+            'alternate_phone' => 'nullable|string|max:20',
+            'guardian_name' => 'nullable|string|max:255',
+            'guardian_phone' => 'nullable|string|max:20',
+            'guardian_email' => 'nullable|email|max:255',
+            'enrollment_date' => 'nullable|date',
+            'profile_image' => 'nullable|image|max:2048',
         ]);
+
+        // Handle profile image upload if present
+        if ($request->hasFile('profile_image')) {
+            // Delete old image if exists
+            if ($student->profile_image) {
+                \Storage::disk('public')->delete($student->profile_image);
+            }
+            $path = $request->file('profile_image')->store('students', 'public');
+            $validated['profile_image'] = $path;
+        }
 
         $student->update($validated);
 
@@ -95,6 +187,12 @@ class StudentController extends Controller
      */
     public function destroy(Students $student)
     {
+        // Check if student has related payments before deleting
+        if ($student->payments()->count() > 0) {
+            return redirect()->route('students.index')
+                ->with('error', 'Cannot delete student with existing payment records. Archive them first.');
+        }
+
         $student->delete();
 
         return redirect()->route('students.index')
@@ -122,12 +220,12 @@ class StudentController extends Controller
             // Search for students using multiple fields
             $students = Students::with('course')
                 ->where(function($q) use ($query) {
-                    $q->where('first_name', 'ILIKE', "%{$query}%")
-                      ->orWhere('last_name', 'ILIKE', "%{$query}%")
-                      ->orWhere(DB::raw("CONCAT(first_name, ' ', last_name)"), 'ILIKE', "%{$query}%")
-                      ->orWhere('admission_number', 'ILIKE', "%{$query}%")
-                      ->orWhere('email', 'ILIKE', "%{$query}%")
-                      ->orWhere('phone', 'ILIKE', "%{$query}%")
+                    $q->where('first_name', 'LIKE', "%{$query}%")
+                      ->orWhere('last_name', 'LIKE', "%{$query}%")
+                      ->orWhere(DB::raw("CONCAT(first_name, ' ', last_name)"), 'LIKE', "%{$query}%")
+                      ->orWhere('admission_number', 'LIKE', "%{$query}%")
+                      ->orWhere('email', 'LIKE', "%{$query}%")
+                      ->orWhere('phone', 'LIKE', "%{$query}%")
                       ->orWhere('id', '=', is_numeric($query) ? $query : 0);
                 })
                 ->limit(20)
@@ -346,6 +444,12 @@ class StudentController extends Controller
     {
         try {
             $student = Students::onlyTrashed()->findOrFail($id);
+            
+            // Delete profile image if exists
+            if ($student->profile_image) {
+                \Storage::disk('public')->delete($student->profile_image);
+            }
+            
             $student->forceDelete();
             return redirect()->route('students.trash')
                 ->with('success', 'Student permanently deleted!');
@@ -407,11 +511,11 @@ class StudentController extends Controller
             if ($request->filled('search')) {
                 $search = $request->search;
                 $query->where(function($q) use ($search) {
-                    $q->where('first_name', 'ILIKE', "%{$search}%")
-                      ->orWhere('last_name', 'ILIKE', "%{$search}%")
-                      ->orWhere(DB::raw("CONCAT(first_name, ' ', last_name)"), 'ILIKE', "%{$search}%")
-                      ->orWhere('admission_number', 'ILIKE', "%{$search}%")
-                      ->orWhere('email', 'ILIKE', "%{$search}%");
+                    $q->where('first_name', 'LIKE', "%{$search}%")
+                      ->orWhere('last_name', 'LIKE', "%{$search}%")
+                      ->orWhere(DB::raw("CONCAT(first_name, ' ', last_name)"), 'LIKE', "%{$search}%")
+                      ->orWhere('admission_number', 'LIKE', "%{$search}%")
+                      ->orWhere('email', 'LIKE', "%{$search}%");
                 });
             }
             
@@ -438,6 +542,38 @@ class StudentController extends Controller
             Log::error('Filter error: ' . $e->getMessage());
             return redirect()->route('students.index')
                 ->with('error', 'Failed to filter students');
+        }
+    }
+
+    /**
+     * Get student financial summary
+     */
+    public function financialSummary($id)
+    {
+        try {
+            $student = Students::with(['payments', 'feeStructures'])->findOrFail($id);
+            
+            $totalFees = $student->feeStructures->sum('amount') ?? 0;
+            $totalPaid = $student->payments->where('status', 'paid')->sum('amount') ?? 0;
+            $balance = $totalFees - $totalPaid;
+            
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'total_fees' => $totalFees,
+                    'total_paid' => $totalPaid,
+                    'balance' => $balance,
+                    'payment_status' => $balance <= 0 ? 'paid' : ($balance > 0 ? 'pending' : 'overdue'),
+                    'payments_count' => $student->payments->count(),
+                    'fee_structures_count' => $student->feeStructures->count(),
+                ]
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Financial summary error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch financial summary'
+            ], 500);
         }
     }
 }

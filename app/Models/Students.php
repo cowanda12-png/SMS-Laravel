@@ -4,29 +4,42 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Students extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     protected $table = 'students';
 
     protected $fillable = [
         'admission_number',
+        'registration_number',
         'first_name',
         'last_name',
         'email',
         'phone',
+        'alternate_phone',
         'address',
+        'date_of_birth',
+        'gender',
+        'guardian_name',
+        'guardian_phone',
+        'guardian_email',
         'class_id',
+        'grade_id',
         'course_id',
         'status',
-        'registration_number',
+        'enrollment_date',
+        'profile_image',
     ];
 
     protected $casts = [
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
+        'deleted_at' => 'datetime',
+        'date_of_birth' => 'date',
+        'enrollment_date' => 'date',
     ];
 
     // ==================== RELATIONSHIPS ====================
@@ -37,13 +50,13 @@ class Students extends Model
         return $this->belongsTo(Course::class, 'course_id', 'id');
     }
 
-    // Relationship: Student belongs to one Class (ADD THIS)
+    // Relationship: Student belongs to one Class
     public function class()
     {
         return $this->belongsTo(Classes::class, 'class_id', 'id');
     }
 
-    // Relationship: Student belongs to one Grade (ADD THIS)
+    // Relationship: Student belongs to one Grade
     public function grade()
     {
         return $this->belongsTo(Grade::class, 'grade_id', 'id');
@@ -53,6 +66,20 @@ class Students extends Model
     public function fees()
     {
         return $this->hasMany(Fee::class, 'student_id', 'id');
+    }
+
+    // Relationship: Student has many Payments
+    public function payments()
+    {
+        return $this->hasMany(Payment::class, 'student_id', 'id');
+    }
+
+    // Relationship: Student has many Fee Structures
+    public function feeStructures()
+    {
+        return $this->hasMany(FeeStructure::class, 'class_id', 'class_id')
+            ->orWhereNull('class_id')
+            ->where('status', 'active');
     }
 
     // Get paid fees
@@ -81,17 +108,10 @@ class Students extends Model
             ->latest('created_at');
     }
 
-    // Relationship: Student has many Payments
-    public function payments()
-    {
-        return $this->hasMany(Payment::class);
-    }
-
     // ==================== ACCESSORS ====================
 
     /**
      * Get the student's full name.
-     * This is the primary name accessor used by Fee model.
      */
     public function getNameAttribute()
     {
@@ -131,34 +151,95 @@ class Students extends Model
     }
 
     /**
-     * Get total fees.
+     * Get total fees from fee structures.
      */
     public function getTotalFeesAttribute()
     {
-        return $this->fees()->sum('amount') ?? 0;
+        // Try to get from fee structures first
+        $feeStructuresTotal = $this->feeStructures->sum('amount') ?? 0;
+        
+        // If no fee structures, try to get from fees
+        if ($feeStructuresTotal == 0) {
+            $feeStructuresTotal = $this->fees()->sum('amount') ?? 0;
+        }
+        
+        return $feeStructuresTotal;
     }
 
     /**
-     * Get fee payment status summary.
+     * Get outstanding balance.
      */
-    public function getFeeStatusAttribute()
+    public function getOutstandingBalanceAttribute()
     {
-        $total = $this->getTotalFeesAttribute();
-        $paid = $this->getTotalPaidAttribute();
+        return $this->total_fees - $this->total_paid;
+    }
+
+    /**
+     * Get balance (alias for outstanding_balance).
+     */
+    public function getBalanceAttribute()
+    {
+        return $this->outstanding_balance;
+    }
+
+    /**
+     * Get fee payment status.
+     */
+    public function getPaymentStatusAttribute()
+    {
+        $total = $this->total_fees;
+        $paid = $this->total_paid;
+        $balance = $this->balance;
         
         if ($total == 0) {
-            return 'No Fees';
+            return 'pending';
         }
         
-        $percentage = ($paid / $total) * 100;
-        
-        if ($percentage == 100) {
-            return 'Fully Paid';
-        } elseif ($percentage >= 50) {
-            return 'Partially Paid';
-        } else {
-            return 'Low Payment';
+        if ($balance <= 0) {
+            return 'paid';
         }
+        
+        // Check for overdue payments
+        $hasOverdue = $this->overdueFees()->count() > 0;
+        if ($hasOverdue) {
+            return 'overdue';
+        }
+        
+        if ($paid > 0 && $balance > 0) {
+            return 'partial';
+        }
+        
+        return 'pending';
+    }
+
+    /**
+     * Get fee status label.
+     */
+    public function getFeeStatusLabelAttribute()
+    {
+        $status = $this->payment_status;
+        return match($status) {
+            'paid' => 'Fully Paid',
+            'partial' => 'Partially Paid',
+            'overdue' => 'Overdue',
+            'pending' => 'Pending',
+            default => 'No Fees'
+        };
+    }
+
+    /**
+     * Get fee status color.
+     */
+    public function getFeeStatusColorAttribute()
+    {
+        $status = $this->payment_status;
+        return match($status) {
+            'paid' => 'success',
+            'partial' => 'warning',
+            'overdue' => 'danger',
+            'pending' => 'info',
+            default => 'secondary'
+        };
     }
 
     /**
@@ -181,7 +262,7 @@ class Students extends Model
     }
 
     /**
-     * Accessor for status color.
+     * Get status color.
      */
     public function getStatusColorAttribute()
     {
@@ -190,12 +271,14 @@ class Students extends Model
             'inactive' => 'danger',
             'pending' => 'warning',
             'graduated' => 'info',
+            'suspended' => 'danger',
+            'expelled' => 'danger',
             default => 'secondary'
         };
     }
 
     /**
-     * Accessor for student initials.
+     * Get student initials.
      */
     public function getInitialsAttribute()
     {
@@ -205,11 +288,50 @@ class Students extends Model
     }
 
     /**
-     * Accessor for display name with admission number.
+     * Get display name with admission number.
      */
     public function getDisplayNameAttribute()
     {
         return $this->name . ' (' . ($this->admission_number ?? 'N/A') . ')';
+    }
+
+    /**
+     * Get formatted date of birth.
+     */
+    public function getFormattedDateOfBirthAttribute()
+    {
+        return $this->date_of_birth ? $this->date_of_birth->format('M d, Y') : 'N/A';
+    }
+
+    /**
+     * Get formatted enrollment date.
+     */
+    public function getFormattedEnrollmentDateAttribute()
+    {
+        return $this->enrollment_date ? $this->enrollment_date->format('M d, Y') : 'N/A';
+    }
+
+    /**
+     * Get age of student.
+     */
+    public function getAgeAttribute()
+    {
+        if (!$this->date_of_birth) {
+            return null;
+        }
+        return $this->date_of_birth->age;
+    }
+
+    /**
+     * Get gender icon.
+     */
+    public function getGenderIconAttribute()
+    {
+        return match($this->gender) {
+            'male' => 'mars',
+            'female' => 'venus',
+            default => 'genderless'
+        };
     }
 
     // ==================== SCOPES ====================
@@ -232,6 +354,7 @@ class Students extends Model
                      ->orWhere('email', 'LIKE', "%{$search}%")
                      ->orWhere('admission_number', 'LIKE', "%{$search}%")
                      ->orWhere('registration_number', 'LIKE', "%{$search}%")
+                     ->orWhere('phone', 'LIKE', "%{$search}%")
                      ->orWhereRaw("CONCAT(first_name, ' ', last_name) LIKE ?", ["%{$search}%"]);
     }
 
@@ -244,11 +367,53 @@ class Students extends Model
     }
 
     /**
+     * Scope: Filter by class.
+     */
+    public function scopeByClass($query, $classId)
+    {
+        return $query->where('class_id', $classId);
+    }
+
+    /**
+     * Scope: Filter by grade.
+     */
+    public function scopeByGrade($query, $gradeId)
+    {
+        return $query->where('grade_id', $gradeId);
+    }
+
+    /**
      * Scope: Filter by status.
      */
     public function scopeByStatus($query, $status)
     {
         return $query->where('status', $status);
+    }
+
+    /**
+     * Scope: Filter by gender.
+     */
+    public function scopeByGender($query, $gender)
+    {
+        return $query->where('gender', $gender);
+    }
+
+    /**
+     * Scope: Students with balance.
+     */
+    public function scopeWithBalance($query)
+    {
+        return $query->has('fees');
+    }
+
+    /**
+     * Scope: Students with overdue payments.
+     */
+    public function scopeWithOverdue($query)
+    {
+        return $query->whereHas('fees', function($q) {
+            $q->where('status', 'overdue');
+        });
     }
 
     // ==================== MUTATORS ====================
@@ -300,17 +465,17 @@ class Students extends Model
      */
     public function hasPaidAllFees()
     {
-        $total = $this->getTotalFeesAttribute();
-        $paid = $this->getTotalPaidAttribute();
+        $total = $this->total_fees;
+        $paid = $this->total_paid;
         return $total > 0 && $total == $paid;
     }
 
     /**
      * Get student's outstanding balance.
      */
-    public function getOutstandingBalanceAttribute()
+    public function getOutstandingBalance()
     {
-        return $this->getTotalFeesAttribute() - $this->getTotalPaidAttribute();
+        return $this->outstanding_balance;
     }
 
     /**
@@ -327,15 +492,28 @@ class Students extends Model
             'registration_number' => $this->registration_number,
             'email' => $this->email,
             'phone' => $this->phone,
+            'alternate_phone' => $this->alternate_phone,
             'address' => $this->address,
+            'date_of_birth' => $this->formatted_date_of_birth,
+            'gender' => $this->gender,
+            'guardian_name' => $this->guardian_name,
+            'guardian_phone' => $this->guardian_phone,
+            'guardian_email' => $this->guardian_email,
             'course' => $this->course_name,
             'course_id' => $this->course_id,
+            'class' => $this->class?->name ?? 'N/A',
+            'class_id' => $this->class_id,
+            'grade' => $this->grade?->name ?? 'N/A',
+            'grade_id' => $this->grade_id,
             'status' => $this->status,
             'status_color' => $this->status_color,
+            'enrollment_date' => $this->formatted_enrollment_date,
             'total_fees' => $this->total_fees,
             'total_paid' => $this->total_paid,
             'outstanding_balance' => $this->outstanding_balance,
-            'fee_status' => $this->fee_status,
+            'payment_status' => $this->payment_status,
+            'payment_status_label' => $this->fee_status_label,
+            'payment_status_color' => $this->fee_status_color,
             'created_at' => $this->created_at?->toISOString(),
             'updated_at' => $this->updated_at?->toISOString(),
         ];
@@ -351,12 +529,26 @@ class Students extends Model
         static::creating(function ($student) {
             // Generate admission number if not provided
             if (empty($student->admission_number)) {
-                $student->admission_number = 'ADM-' . date('Y') . '-' . str_pad(rand(1000, 9999), 4, '0', STR_PAD_LEFT);
+                $year = date('Y');
+                $random = str_pad(rand(1000, 9999), 4, '0', STR_PAD_LEFT);
+                $student->admission_number = 'ADM-' . $year . '-' . $random;
             }
             
             // Set default status if not provided
             if (empty($student->status)) {
                 $student->status = 'active';
+            }
+            
+            // Set enrollment date if not provided
+            if (empty($student->enrollment_date)) {
+                $student->enrollment_date = now();
+            }
+        });
+
+        static::deleting(function ($student) {
+            // Delete profile image if exists
+            if ($student->profile_image && file_exists(storage_path('app/public/' . $student->profile_image))) {
+                \Storage::disk('public')->delete($student->profile_image);
             }
         });
     }
