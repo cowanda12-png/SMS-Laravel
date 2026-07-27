@@ -144,10 +144,7 @@ Route::prefix('reports')->middleware('auth')->group(function () {
 
 // ==================== ⭐ EXAM ROUTES ====================
 Route::middleware('auth')->group(function () {
-    // ⭐ CUSTOM RECORD-MARKS ROUTES (NOT in resource)
-    Route::get('/exams/{exam}/record-marks', [ExamController::class, 'recordMarks'])->name('exams.record-marks');
-    Route::post('/exams/{exam}/record-marks', [ExamController::class, 'recordMarks'])->name('exams.record-marks');
-    
+   
     // ⭐ EXTRA ROUTES
     Route::get('/exams/performance-analysis', [ExamController::class, 'performanceAnalysis'])->name('exams.performance-analysis');
     Route::get('/exams/report-card/{studentId}/{term}/{academicYear}', [ExamController::class, 'generateReportCard'])->name('exams.report-card');
