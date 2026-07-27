@@ -263,6 +263,72 @@
             text-align: center;
         }
         
+        /* Sidebar Divider */
+        .sidebar-divider {
+            border: none;
+            border-top: 1px solid rgba(255,255,255,0.06);
+            margin: 0.5rem 0.8rem;
+        }
+        
+        /* Sidebar Dropdown Styles */
+        .sidebar-dropdown-toggle {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 12px;
+            color: rgba(255,255,255,0.6);
+            text-decoration: none;
+            border-radius: 6px;
+            font-size: 0.82rem;
+            transition: all 0.2s ease;
+            cursor: pointer;
+            width: 100%;
+            background: none;
+            border: none;
+            font-family: inherit;
+            text-align: left;
+        }
+        
+        .sidebar-dropdown-toggle:hover {
+            background: rgba(108, 140, 255, 0.12);
+            color: #6c8cff;
+        }
+        
+        .sidebar-dropdown-toggle.active {
+            background: rgba(108, 140, 255, 0.12);
+            color: #6c8cff;
+        }
+        
+        .sidebar-dropdown-toggle .arrow {
+            margin-left: auto;
+            transition: transform 0.3s ease;
+            font-size: 0.7rem;
+        }
+        
+        .sidebar-dropdown-toggle .arrow.open {
+            transform: rotate(180deg);
+        }
+        
+        .sidebar-dropdown-menu {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            overflow: hidden;
+            max-height: 0;
+            transition: max-height 0.3s ease, opacity 0.3s ease;
+            opacity: 0;
+        }
+        
+        .sidebar-dropdown-menu.open {
+            max-height: 500px;
+            opacity: 1;
+        }
+        
+        .sidebar-dropdown-menu .sidebar-link {
+            padding-left: 40px;
+            font-size: 0.78rem;
+        }
+        
         /* Main Content */
         .main-content {
             flex: 1;
@@ -646,6 +712,7 @@
             </div>
 
             <ul class="sidebar-nav">
+                <!-- Main Modules -->
                 <li>
                     <a href="{{ route('dashboard') }}" class="sidebar-link {{ request()->routeIs('dashboard') ? 'active' : '' }}">
                         <i class="fas fa-th-large"></i> Dashboard
@@ -665,6 +732,70 @@
                     <a href="{{ route('fees.index') }}" class="sidebar-link {{ request()->routeIs('fees.*') ? 'active' : '' }}">
                         <i class="fas fa-money-bill-wave"></i> Fees
                     </a>
+                </li>
+                
+                <!-- Sidebar Divider -->
+                <li><hr class="sidebar-divider"></li>
+                
+                <!-- Reports Dropdown Section -->
+                <li>
+                    <button class="sidebar-dropdown-toggle" id="reportsDropdownToggle" onclick="toggleReportsDropdown()">
+                        <i class="fas fa-chart-pie"></i> 
+                        <span>Reports &amp; Analytics</span>
+                        <span class="arrow" id="reportsArrow"><i class="fas fa-chevron-down"></i></span>
+                    </button>
+                    <ul class="sidebar-dropdown-menu" id="reportsDropdownMenu">
+                        <li>
+                            <a href="{{ route('reports.dashboard') }}" class="sidebar-link {{ request()->routeIs('reports.dashboard') ? 'active' : '' }}">
+                                <i class="fas fa-chart-pie"></i> Reports Dashboard
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{{ route('reports.student-statement') }}" class="sidebar-link {{ request()->routeIs('reports.student-statement') ? 'active' : '' }}">
+                                <i class="fas fa-id-card"></i> Student Statement
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{{ route('reports.fee-collection') }}" class="sidebar-link {{ request()->routeIs('reports.fee-collection') ? 'active' : '' }}">
+                                <i class="fas fa-money-bill-wave"></i> Fee Collection
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{{ route('reports.outstanding-balances') }}" class="sidebar-link {{ request()->routeIs('reports.outstanding-balances') ? 'active' : '' }}">
+                                <i class="fas fa-exclamation-triangle"></i> Outstanding Balances
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{{ route('reports.course-revenue') }}" class="sidebar-link {{ request()->routeIs('reports.course-revenue') ? 'active' : '' }}">
+                                <i class="fas fa-chart-line"></i> Course Revenue
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{{ route('reports.daily-collection') }}" class="sidebar-link {{ request()->routeIs('reports.daily-collection') ? 'active' : '' }}">
+                                <i class="fas fa-calendar-day"></i> Daily Collection
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{{ route('reports.monthly-collection') }}" class="sidebar-link {{ request()->routeIs('reports.monthly-collection') ? 'active' : '' }}">
+                                <i class="fas fa-calendar-alt"></i> Monthly Collection
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{{ route('reports.mpesa-transactions') }}" class="sidebar-link {{ request()->routeIs('reports.mpesa-transactions') ? 'active' : '' }}">
+                                <i class="fas fa-mobile-alt"></i> M-Pesa Transactions
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{{ route('reports.payment-method-analysis') }}" class="sidebar-link {{ request()->routeIs('reports.payment-method-analysis') ? 'active' : '' }}">
+                                <i class="fas fa-credit-card"></i> Payment Method Analysis
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{{ route('reports.fee-summary') }}" class="sidebar-link {{ request()->routeIs('reports.fee-summary') ? 'active' : '' }}">
+                                <i class="fas fa-file-alt"></i> Fee Summary
+                            </a>
+                        </li>
+                    </ul>
                 </li>
             </ul>
         </aside>
@@ -712,6 +843,18 @@
             sidebar.classList.remove('open');
             overlay.classList.remove('show');
             document.body.style.overflow = '';
+        }
+        
+        // Toggle Reports Dropdown
+        function toggleReportsDropdown() {
+            const menu = document.getElementById('reportsDropdownMenu');
+            const arrow = document.getElementById('reportsArrow');
+            const toggle = document.getElementById('reportsDropdownToggle');
+            
+            menu.classList.toggle('open');
+            arrow.classList.toggle('open');
+            
+            // Close other dropdowns if any (for future expansion)
         }
         
         // Close sidebar when clicking on a link (mobile)
@@ -779,6 +922,24 @@
         document.querySelectorAll('.sidebar-link').forEach(function(link) {
             if (link.getAttribute('href') === currentPath) {
                 link.classList.add('active');
+            }
+        });
+        
+        // Auto-expand reports dropdown if a reports page is active
+        document.addEventListener('DOMContentLoaded', function() {
+            const reportsLinks = document.querySelectorAll('#reportsDropdownMenu .sidebar-link');
+            let hasActiveReports = false;
+            reportsLinks.forEach(function(link) {
+                if (link.classList.contains('active')) {
+                    hasActiveReports = true;
+                }
+            });
+            
+            if (hasActiveReports) {
+                const menu = document.getElementById('reportsDropdownMenu');
+                const arrow = document.getElementById('reportsArrow');
+                menu.classList.add('open');
+                arrow.classList.add('open');
             }
         });
     </script>

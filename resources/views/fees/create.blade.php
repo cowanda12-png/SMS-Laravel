@@ -49,31 +49,69 @@
                     <form action="{{ route('fees.store') }}" method="POST" id="paymentForm">
                         @csrf
 
-                        <!-- Student Selection -->
+                        <!-- Student Selection with Search -->
                         <div class="mb-4">
-                            <label for="student_id" class="form-label fw-semibold">
+                            <label for="student_search" class="form-label fw-semibold">
                                 Search Student <span class="text-danger">*</span>
                             </label>
-                            <select name="student_id" id="student_id"
-                                    class="form-select form-select-lg @error('student_id') is-invalid @enderror"
-                                    required>
-                                <option value="">— Type student name or admission no... —</option>
-                                @foreach($students as $student)
-                                    <option value="{{ $student->id }}"
-                                        {{ old('student_id') == $student->id ? 'selected' : '' }}
-                                        data-phone="{{ $student->phone ?? '' }}"
-                                        data-name="{{ trim(($student->first_name ?? '') . ' ' . ($student->last_name ?? '')) }}"
-                                        data-admission="{{ $student->admission_number ?? '' }}">
-                                        {{ $student->first_name ?? '' }} {{ $student->last_name ?? '' }}
-                                        ({{ $student->admission_number ?? 'N/A' }})
-                                        @if(isset($student->course->course_name))
-                                            - {{ $student->course->course_name }}
-                                        @endif
-                                    </option>
-                                @endforeach
-                            </select>
+                            
+                            <!-- Search Input -->
+                            <div class="position-relative">
+                                <div class="input-group">
+                                    <span class="input-group-text bg-white">
+                                        <i class="fas fa-search text-muted"></i>
+                                    </span>
+                                    <input type="text" 
+                                           id="student_search" 
+                                           class="form-control form-control-lg @error('student_id') is-invalid @enderror"
+                                           placeholder="Type student name, admission number, or ID..."
+                                           autocomplete="off">
+                                    <button type="button" class="btn btn-outline-secondary" id="clearSearchBtn">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                                
+                                <!-- Search Results Dropdown -->
+                                <div id="searchResults" class="dropdown-menu w-100 p-0 mt-1 shadow-lg" style="max-height: 400px; overflow-y: auto; display: none; position: absolute; z-index: 1000;">
+                                    <div class="p-3 text-center text-muted d-none" id="searchLoading">
+                                        <div class="spinner-border spinner-border-sm text-primary me-2" role="status">
+                                            <span class="visually-hidden">Loading...</span>
+                                        </div>
+                                        Searching...
+                                    </div>
+                                    <div class="p-3 text-center text-muted d-none" id="searchNoResults">
+                                        <i class="fas fa-search me-2"></i> No students found
+                                    </div>
+                                    <div id="searchResultsList"></div>
+                                </div>
+                            </div>
+                            
+                            <!-- Selected Student Display -->
+                            <div id="selectedStudentDisplay" class="mt-3 p-3 bg-light rounded-3 border @if(!old('student_id')) d-none @endif">
+                                <div class="d-flex align-items-center justify-content-between">
+                                    <div class="d-flex align-items-center">
+                                        <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center me-3" 
+                                             style="width: 48px; height: 48px; font-size: 20px; font-weight: bold;">
+                                            <span id="selectedStudentInitial">?</span>
+                                        </div>
+                                        <div>
+                                            <h6 class="mb-0 fw-bold" id="selectedStudentName">Student Name</h6>
+                                            <small class="text-muted">
+                                                <span id="selectedStudentAdmission">Admission: N/A</span>
+                                                <span class="mx-1">•</span>
+                                                <span id="selectedStudentCourse">Course: N/A</span>
+                                            </small>
+                                        </div>
+                                    </div>
+                                    <button type="button" class="btn btn-sm btn-outline-danger" id="deselectStudent">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <input type="hidden" name="student_id" id="student_id" value="{{ old('student_id') }}">
                             @error('student_id')
-                                <div class="invalid-feedback">{{ $message }}</div>
+                                <div class="invalid-feedback d-block">{{ $message }}</div>
                             @enderror
                         </div>
 
@@ -437,6 +475,65 @@
         border-radius: 10px;
     }
     
+    /* Search Results Styling */
+    #searchResults .dropdown-item {
+        padding: 10px 16px;
+        border-bottom: 1px solid #f1f3f5;
+        cursor: pointer;
+        transition: background 0.15s ease;
+    }
+    
+    #searchResults .dropdown-item:last-child {
+        border-bottom: none;
+    }
+    
+    #searchResults .dropdown-item:hover,
+    #searchResults .dropdown-item:focus {
+        background: #f0f4ff;
+    }
+    
+    #searchResults .dropdown-item .student-name {
+        font-weight: 600;
+        color: #212529;
+    }
+    
+    #searchResults .dropdown-item .student-detail {
+        font-size: 0.85rem;
+        color: #6c757d;
+    }
+    
+    #searchResults .dropdown-item .badge {
+        font-size: 0.7rem;
+    }
+    
+    #searchResults .dropdown-item.active {
+        background: #6c8cff;
+        color: white;
+    }
+    
+    #searchResults .dropdown-item.active .student-name,
+    #searchResults .dropdown-item.active .student-detail {
+        color: white;
+    }
+    
+    /* Selected Student Display */
+    #selectedStudentDisplay {
+        border-color: #6c8cff !important;
+        background: #f8faff !important;
+        animation: slideDown 0.3s ease;
+    }
+    
+    @keyframes slideDown {
+        from {
+            opacity: 0;
+            transform: translateY(-10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    
     /* Responsive */
     @media (max-width: 767.98px) {
         .card-body {
@@ -454,6 +551,10 @@
         
         .payment-method-btn .small {
             font-size: 0.65rem !important;
+        }
+        
+        #searchResults {
+            max-height: 300px !important;
         }
     }
     
@@ -479,6 +580,12 @@
             font-size: 0.8rem;
             padding: 6px 14px;
         }
+        
+        #selectedStudentDisplay .rounded-circle {
+            width: 36px !important;
+            height: 36px !important;
+            font-size: 16px !important;
+        }
     }
 </style>
 @endsection
@@ -490,6 +597,232 @@
 <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
 
 <script>
+    // ============================================
+    // STUDENT SEARCH FUNCTIONALITY
+    // ============================================
+    document.addEventListener('DOMContentLoaded', function() {
+        const searchInput = document.getElementById('student_search');
+        const searchResults = document.getElementById('searchResults');
+        const searchResultsList = document.getElementById('searchResultsList');
+        const searchLoading = document.getElementById('searchLoading');
+        const searchNoResults = document.getElementById('searchNoResults');
+        const studentIdInput = document.getElementById('student_id');
+        const selectedDisplay = document.getElementById('selectedStudentDisplay');
+        const clearSearchBtn = document.getElementById('clearSearchBtn');
+        const deselectBtn = document.getElementById('deselectStudent');
+        
+        let searchTimeout = null;
+        let selectedStudent = null;
+        
+        // Check if there's a pre-selected student (from validation error)
+        const preSelectedId = studentIdInput.value;
+        if (preSelectedId) {
+            fetchStudentById(preSelectedId);
+        }
+        
+        // Search input handler
+        searchInput.addEventListener('input', function() {
+            const query = this.value.trim();
+            
+            if (searchTimeout) {
+                clearTimeout(searchTimeout);
+            }
+            
+            if (!query) {
+                searchResults.style.display = 'none';
+                return;
+            }
+            
+            // Show loading
+            searchLoading.classList.remove('d-none');
+            searchNoResults.classList.add('d-none');
+            searchResultsList.innerHTML = '';
+            searchResults.style.display = 'block';
+            
+            searchTimeout = setTimeout(() => {
+                performSearch(query);
+            }, 400);
+        });
+        
+        // Perform search via AJAX
+        async function performSearch(query) {
+            try {
+                const response = await axios.get('{{ route("students.search") }}', {
+                    params: { query: query }
+                });
+                
+                searchLoading.classList.add('d-none');
+                
+                if (!response.data || response.data.length === 0) {
+                    searchNoResults.classList.remove('d-none');
+                    return;
+                }
+                
+                searchNoResults.classList.add('d-none');
+                searchResultsList.innerHTML = '';
+                
+                response.data.forEach(student => {
+                    const item = document.createElement('a');
+                    item.className = 'dropdown-item d-flex align-items-center';
+                    item.href = '#';
+                    item.innerHTML = `
+                        <div class="flex-grow-1">
+                            <div class="d-flex align-items-center justify-content-between">
+                                <span class="student-name">${highlightMatch(student.name, query)}</span>
+                                <span class="badge bg-primary">#${student.id}</span>
+                            </div>
+                            <div class="student-detail">
+                                <i class="fas fa-id-card me-1"></i> ${student.admission_number || 'N/A'}
+                                ${student.course ? `<span class="mx-1">•</span> <i class="fas fa-graduation-cap me-1"></i> ${student.course}` : ''}
+                                ${student.phone ? `<span class="mx-1">•</span> <i class="fas fa-phone me-1"></i> ${student.phone}` : ''}
+                            </div>
+                        </div>
+                    `;
+                    
+                    item.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        selectStudent(student);
+                        searchResults.style.display = 'none';
+                        searchInput.value = student.name;
+                    });
+                    
+                    searchResultsList.appendChild(item);
+                });
+            } catch (error) {
+                console.error('Search Error:', error);
+                searchLoading.classList.add('d-none');
+                searchNoResults.classList.remove('d-none');
+                let errorMsg = 'Error searching students';
+                if (error.response && error.response.data && error.response.data.message) {
+                    errorMsg = error.response.data.message;
+                }
+                searchNoResults.innerHTML = '<i class="fas fa-exclamation-circle me-2"></i> ' + errorMsg;
+            }
+        }
+        
+        // Fetch student by ID
+        async function fetchStudentById(studentId) {
+            try {
+                const response = await axios.get('{{ route("students.get") }}', {
+                    params: { id: studentId }
+                });
+                
+                if (response.data && response.data.id) {
+                    selectStudent(response.data);
+                }
+            } catch (error) {
+                console.error('Error fetching student:', error);
+            }
+        }
+        
+        // Highlight matched text
+        function highlightMatch(text, query) {
+            if (!text) return text;
+            const index = text.toLowerCase().indexOf(query.toLowerCase());
+            if (index === -1) return text;
+            
+            return text.substring(0, index) + 
+                   '<span class="bg-warning bg-opacity-25 fw-bold">' + 
+                   text.substring(index, index + query.length) + 
+                   '</span>' + 
+                   text.substring(index + query.length);
+        }
+        
+        // Select a student
+        function selectStudent(student) {
+            selectedStudent = student;
+            studentIdInput.value = student.id;
+            
+            document.getElementById('selectedStudentName').textContent = student.name || 'Unknown Student';
+            document.getElementById('selectedStudentAdmission').textContent = 'Admission: ' + (student.admission_number || 'N/A');
+            document.getElementById('selectedStudentCourse').textContent = 'Course: ' + (student.course || 'N/A');
+            const initial = student.name ? student.name.charAt(0).toUpperCase() : '?';
+            document.getElementById('selectedStudentInitial').textContent = initial;
+            
+            selectedDisplay.classList.remove('d-none');
+            searchInput.value = student.name || '';
+            
+            if (student.phone) {
+                const mpesaPhone = document.getElementById('mpesa_phone');
+                const modalPhone = document.getElementById('modal_mpesa_phone');
+                if (mpesaPhone) mpesaPhone.value = student.phone;
+                if (modalPhone) modalPhone.value = student.phone;
+            }
+            
+            const modalStudentName = document.getElementById('modal_student_name');
+            if (modalStudentName) {
+                modalStudentName.textContent = student.name || '— No student selected —';
+            }
+            
+            searchResults.style.display = 'none';
+        }
+        
+        // Clear search
+        clearSearchBtn.addEventListener('click', function() {
+            searchInput.value = '';
+            searchResults.style.display = 'none';
+            if (!selectedStudent) {
+                studentIdInput.value = '';
+            }
+        });
+        
+        // Deselect student
+        deselectBtn.addEventListener('click', function() {
+            selectedStudent = null;
+            studentIdInput.value = '';
+            selectedDisplay.classList.add('d-none');
+            searchInput.value = '';
+            searchInput.focus();
+            
+            const modalStudentName = document.getElementById('modal_student_name');
+            if (modalStudentName) {
+                modalStudentName.textContent = '— No student selected —';
+            }
+        });
+        
+        // Close search on outside click
+        document.addEventListener('click', function(e) {
+            const searchContainer = document.querySelector('.position-relative');
+            if (searchContainer && !searchContainer.contains(e.target)) {
+                searchResults.style.display = 'none';
+            }
+        });
+        
+        // Keyboard navigation
+        searchInput.addEventListener('keydown', function(e) {
+            const items = searchResultsList.querySelectorAll('.dropdown-item');
+            if (items.length === 0) return;
+            
+            let currentIndex = -1;
+            items.forEach((item, index) => {
+                if (item.classList.contains('active')) {
+                    currentIndex = index;
+                    item.classList.remove('active');
+                }
+            });
+            
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                const nextIndex = Math.min(currentIndex + 1, items.length - 1);
+                items[nextIndex].classList.add('active');
+                items[nextIndex].scrollIntoView({ block: 'nearest' });
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                const prevIndex = Math.max(currentIndex - 1, 0);
+                items[prevIndex].classList.add('active');
+                items[prevIndex].scrollIntoView({ block: 'nearest' });
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                const activeItem = searchResultsList.querySelector('.dropdown-item.active');
+                if (activeItem) {
+                    activeItem.click();
+                }
+            } else if (e.key === 'Escape') {
+                searchResults.style.display = 'none';
+            }
+        });
+    });
+
     // ============================================
     // GLOBAL VARIABLES
     // ============================================
@@ -518,8 +851,6 @@
         const csrfToken = document.querySelector('meta[name="csrf-token"]');
         if (csrfToken) {
             axios.defaults.headers.common['X-CSRF-TOKEN'] = csrfToken.content;
-        } else {
-            console.warn('CSRF token meta tag not found.');
         }
 
         // Initialize Bootstrap modal
@@ -535,46 +866,21 @@
         const confirmedBanner = document.getElementById('mpesaConfirmedBanner');
         const sendStkBtn = document.getElementById('modal_sendStkPush');
 
-        // ============================================
-        // Get current student name from data-name attribute
-        // ============================================
         function getCurrentStudentName() {
-            if (!studentSelect || !studentSelect.value) {
-                return '— No student selected —';
+            const studentId = studentSelect.value;
+            if (!studentId) return '— No student selected —';
+            const nameElement = document.getElementById('selectedStudentName');
+            if (nameElement && nameElement.textContent !== 'Student Name') {
+                return nameElement.textContent;
             }
-            
-            const option = studentSelect.options[studentSelect.selectedIndex];
-            if (!option) {
-                return '— No student selected —';
-            }
-            
-            const dataName = option.getAttribute('data-name');
-            if (dataName && dataName.trim()) {
-                return dataName.trim();
-            }
-            
-            let text = option.text.trim();
-            text = text.replace(/\s*\([^)]*\)\s*/g, ' ').trim();
-            text = text.replace(/\s+/g, ' ').trim();
-            
-            return text || '— No student selected —';
+            return '— No student selected —';
         }
 
-        // ============================================
-        // Get student phone
-        // ============================================
         function getStudentPhone() {
-            if (!studentSelect || !studentSelect.value) return '';
-            const option = studentSelect.options[studentSelect.selectedIndex];
-            return option ? option.getAttribute('data-phone') || '' : '';
+            return document.getElementById('modal_mpesa_phone')?.value || '';
         }
 
-        // ============================================
-        // Sync all modal fields
-        // ============================================
         function syncModalFields() {
-            console.log('🔄 Syncing modal fields...');
-            
             const studentNameElement = document.getElementById('modal_student_name');
             if (studentNameElement) {
                 studentNameElement.textContent = getCurrentStudentName();
@@ -598,9 +904,6 @@
             }
         }
 
-        // ============================================
-        // Event: Student selection changes
-        // ============================================
         if (studentSelect) {
             studentSelect.addEventListener('change', function() {
                 const phone = getStudentPhone();
@@ -617,9 +920,6 @@
             });
         }
 
-        // ============================================
-        // Event: Amount changes
-        // ============================================
         const amountInput = document.getElementById('amount');
         if (amountInput) {
             amountInput.addEventListener('input', function() {
@@ -630,9 +930,6 @@
             });
         }
 
-        // ============================================
-        // Event: Payment method changes
-        // ============================================
         paymentMethodRadios.forEach(radio => {
             radio.addEventListener('change', function() {
                 paymentMethodHidden.value = this.value;
@@ -655,18 +952,12 @@
             });
         });
 
-        // ============================================
-        // Restore state on validation-error reload
-        // ============================================
         const mpesaRadio = document.querySelector('.payment-method-radio[data-mpesa="true"]');
         if (mpesaRadio && mpesaRadio.checked) {
             if (reopenPrompt) reopenPrompt.classList.remove('d-none');
             setTimeout(syncModalFields, 200);
         }
 
-        // ============================================
-        // Event: Modal hidden (stop polling)
-        // ============================================
         if (modalElement) {
             modalElement.addEventListener('hidden.bs.modal', function() {
                 if (pollingInterval && !mpesaConfirmed) {
@@ -676,13 +967,9 @@
             });
         }
 
-        // ============================================
-        // Event: Modal shown (sync fields)
-        // ============================================
         if (modalElement) {
             modalElement.addEventListener('show.bs.modal', function() {
                 syncModalFields();
-                // Reset transaction status
                 const statusDiv = document.getElementById('modal_transactionStatus');
                 if (statusDiv) statusDiv.classList.add('d-none');
                 const sendButton = document.getElementById('modal_sendStkPush');
@@ -693,18 +980,12 @@
             });
         }
 
-        // ============================================
-        // Send STK Push button click
-        // ============================================
         if (sendStkBtn) {
             sendStkBtn.addEventListener('click', function() {
                 initiateMpesaPayment();
             });
         }
 
-        // ============================================
-        // Form submission guard with isSubmitting flag
-        // ============================================
         const form = document.getElementById('paymentForm');
         if (form) {
             form.addEventListener('submit', function(e) {
@@ -740,9 +1021,6 @@
             });
         }
 
-        // ============================================
-        // Initial sync
-        // ============================================
         setTimeout(syncModalFields, 300);
     });
 
@@ -761,7 +1039,7 @@
     }
 
     // ============================================
-    // Strict phone number validation
+    // Phone number validation
     // ============================================
     function validateMpesaNumber() {
         const phoneInput = document.getElementById('modal_mpesa_phone');
@@ -803,7 +1081,6 @@
         return false;
     }
 
-    // Real-time phone validation
     const phoneInput = document.getElementById('modal_mpesa_phone');
     if (phoneInput) {
         phoneInput.addEventListener('input', validateMpesaNumber);
@@ -811,7 +1088,7 @@
     }
 
     // ============================================
-    // Validate amount
+    // Validate functions
     // ============================================
     function validateAmount(amount) {
         const amountValue = Number(amount);
@@ -827,9 +1104,6 @@
         return true;
     }
 
-    // ============================================
-    // Validate student selection
-    // ============================================
     function validateStudentSelected() {
         const studentSelect = document.getElementById('student_id');
         if (!studentSelect || !studentSelect.value) {
@@ -844,19 +1118,15 @@
         return true;
     }
 
-    // ============================================
-    // Get CSRF token
-    // ============================================
     function getCsrfToken() {
         const token = document.querySelector('meta[name="csrf-token"]');
         return token ? token.getAttribute('content') : '';
     }
 
     // ============================================
-    // ⭐ Initiate M-Pesa STK Push
+    // Initiate M-Pesa STK Push
     // ============================================
     async function initiateMpesaPayment() {
-        // Validate student selection
         if (!validateStudentSelected()) {
             return;
         }
@@ -866,12 +1136,10 @@
         const phone = document.getElementById('modal_mpesa_phone')?.value;
         const reference = document.getElementById('mpesa_reference')?.value;
 
-        // Validate amount
         if (!validateAmount(amount)) {
             return;
         }
 
-        // Validate phone
         if (!validateMpesaNumber()) {
             Swal.fire({
                 icon: 'warning',
@@ -882,11 +1150,9 @@
             return;
         }
 
-        // Update hidden phone field
         const mpesaPhone = document.getElementById('mpesa_phone');
         if (mpesaPhone) mpesaPhone.value = phone;
 
-        // Disable button and show loading state
         const sendButton = document.getElementById('modal_sendStkPush');
         if (sendButton) {
             sendButton.disabled = true;
@@ -934,13 +1200,11 @@
                     checkoutId.value = response.data.checkout_request_id;
                 }
                 
-                // Reset button state
                 if (sendButton) {
                     sendButton.disabled = false;
                     sendButton.innerHTML = '<i class="fas fa-paper-plane me-1"></i> Send STK Push';
                 }
                 
-                // Start polling with phone for fallback
                 startPolling(response.data.checkout_request_id, response.data.phone || phone);
             } else {
                 mpesaFailed(response.data.message || 'Failed to send payment request.');
@@ -953,11 +1217,11 @@
     }
 
     // ============================================
-    // ⭐ Poll for transaction status with phone fallback
+    // Poll for transaction status
     // ============================================
     function startPolling(checkoutRequestId, phone) {
         let attempts = 0;
-        const maxAttempts = 30; // 30 attempts * 2 seconds = 60 seconds
+        const maxAttempts = 30;
 
         if (pollingInterval) {
             clearInterval(pollingInterval);
@@ -974,7 +1238,6 @@
             }
 
             try {
-                // Include phone in the request for fallback
                 const response = await axios.get('{{ route("mpesa.status") }}', {
                     params: {
                         checkout_request_id: checkoutRequestId,
@@ -982,9 +1245,6 @@
                     }
                 });
 
-                console.log('📊 Status check attempt ' + attempts + ':', response.data);
-
-                // Check for successful payment
                 if (response.data.success && response.data.resultCode === '0') {
                     clearInterval(pollingInterval);
                     pollingInterval = null;
@@ -1007,7 +1267,6 @@
                     }
                     if (statusProgress) statusProgress.style.width = '100%';
 
-                    // Safe receipt number assignment
                     if (response.data.mpesa_receipt_number) {
                         const transCode = document.getElementById('mpesa_transaction_code');
                         const receiptNo = document.getElementById('receipt_no');
@@ -1029,7 +1288,6 @@
                         sendButton.innerHTML = '<i class="fas fa-paper-plane me-1"></i> Send STK Push';
                     }
 
-                    // Redirect to receipt after successful payment
                     setTimeout(() => {
                         if (mpesaModalInstance) mpesaModalInstance.hide();
                         
@@ -1039,14 +1297,12 @@
                         if (reopenPrompt) reopenPrompt.classList.add('d-none');
                         if (confirmedBanner) confirmedBanner.classList.remove('d-none');
                         
-                        // Submit form
                         const form = document.getElementById('paymentForm');
                         if (!isSubmitting) {
                             isSubmitting = true;
                             form.submit();
                         }
                         
-                        // Show success message and redirect
                         let redirectUrl = '{{ route("fees.index") }}';
                         
                         if (response.data.payment_id) {
@@ -1068,7 +1324,6 @@
                             confirmButtonColor: '#28a745',
                             confirmButtonText: 'View Receipt'
                         }).then(() => {
-                            console.log('🔀 Redirecting to:', redirectUrl);
                             window.location.href = redirectUrl;
                         });
                     }, 1000);
@@ -1076,7 +1331,6 @@
                     return;
                 }
 
-                // Check for failure
                 if (response.data.success === false && response.data.resultCode) {
                     clearInterval(pollingInterval);
                     pollingInterval = null;
@@ -1092,7 +1346,6 @@
                     return;
                 }
 
-                // Timeout after max attempts
                 if (attempts >= maxAttempts) {
                     clearInterval(pollingInterval);
                     pollingInterval = null;
@@ -1181,7 +1434,7 @@
     }
 
     // ============================================
-    // ⭐ Manual Status Check Function
+    // Manual Status Check
     // ============================================
     async function manualStatusCheck() {
         const checkoutId = document.getElementById('mpesa_checkout_request_id')?.value;
@@ -1219,7 +1472,6 @@
             Swal.close();
             
             if (response.data.success && response.data.resultCode === '0') {
-                // Payment successful - redirect to receipt
                 let redirectUrl = '{{ route("fees.index") }}';
                 if (response.data.payment_id) {
                     let url = '{{ route("fees.receipt", ":id") }}';
@@ -1228,7 +1480,6 @@
                     redirectUrl = response.data.redirect_url;
                 }
                 
-                // Update form fields
                 if (response.data.mpesa_receipt_number) {
                     const transCode = document.getElementById('mpesa_transaction_code');
                     const receiptNo = document.getElementById('receipt_no');

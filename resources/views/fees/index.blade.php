@@ -110,46 +110,7 @@
         </div>
     </div>
 
-    <!-- Reports & Analytics -->
-    <div class="card border-0 shadow-sm mb-3">
-        <div class="card-body p-2 p-sm-3">
-            <div class="d-flex justify-content-between align-items-center" role="button" data-bs-toggle="collapse" data-bs-target="#reportsPanel" aria-expanded="false" aria-controls="reportsPanel">
-                <h6 class="fw-bold mb-0">
-                    <i class="fas fa-chart-line text-primary me-2"></i> Reports &amp; Analytics
-                </h6>
-                <i class="fas fa-chevron-down text-muted small"></i>
-            </div>
-
-            <div class="collapse mt-3" id="reportsPanel">
-                <div class="row g-2 g-sm-3">
-                    @php
-                        $reportLinks = [
-                            ['route' => route('reports.dashboard'), 'icon' => 'fa-tachometer-alt', 'color' => 'secondary', 'title' => 'Reports Dashboard'],
-                            ['route' => route('reports.student-statement'), 'icon' => 'fa-id-card', 'color' => 'primary', 'title' => 'Student Statement'],
-                            ['route' => route('reports.fee-collection'), 'icon' => 'fa-money-bill-wave', 'color' => 'success', 'title' => 'Fee Collection'],
-                            ['route' => route('reports.outstanding-balances'), 'icon' => 'fa-exclamation-triangle', 'color' => 'warning', 'title' => 'Outstanding Balances'],
-                            ['route' => route('reports.course-revenue'), 'icon' => 'fa-chart-line', 'color' => 'info', 'title' => 'Course Revenue'],
-                            ['route' => route('reports.daily-collection'), 'icon' => 'fa-calendar-day', 'color' => 'danger', 'title' => 'Daily Collection'],
-                            ['route' => route('reports.monthly-collection'), 'icon' => 'fa-calendar-alt', 'color' => 'dark', 'title' => 'Monthly Collection'],
-                        ];
-                    @endphp
-                    @foreach($reportLinks as $report)
-                        <div class="col-6 col-md-4 col-lg-3">
-                            <a href="{{ $report['route'] }}" class="text-decoration-none">
-                                <div class="report-link-card border rounded-3 p-2 p-sm-3 h-100 d-flex align-items-center gap-2 gap-sm-3">
-                                    <span class="icon-circle-sm bg-{{ $report['color'] }}-subtle text-{{ $report['color'] }}">
-                                        <i class="fas {{ $report['icon'] }}"></i>
-                                    </span>
-                                    <span class="fw-semibold small text-dark">{{ $report['title'] }}</span>
-                                </div>
-                            </a>
-                        </div>
-                    @endforeach
-                </div>
-            </div>
-        </div>
-    </div>
-
+  
     <!-- Filters -->
     <div class="card border-0 shadow-sm mb-3">
         <div class="card-body p-2 p-sm-3">

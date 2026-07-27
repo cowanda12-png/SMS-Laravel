@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Students;  // Changed from Student to Students
+use App\Models\Students;
 use App\Models\Course;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 
 class StudentController extends Controller
 {
@@ -14,7 +16,6 @@ class StudentController extends Controller
      */
     public function index()
     {
-        // Check if user is authenticated (Breeze handles this via middleware)
         $students = Students::with('course')->orderBy('id', 'asc')->paginate(10);
         return view('students.index', compact('students'));
     }
@@ -44,7 +45,7 @@ class StudentController extends Controller
             'address' => 'nullable|string'
         ]);
 
-        Students::create($validated);  // Changed from Student to Students
+        Students::create($validated);
 
         return redirect()->route('students.index')
                          ->with('success', 'Student created successfully!');
@@ -53,7 +54,7 @@ class StudentController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show(Students $student)  // Changed from Student to Students
+    public function show(Students $student)
     {
         return view('students.show', compact('student'));
     }
@@ -61,7 +62,7 @@ class StudentController extends Controller
     /**
      * Show the form for editing the specified resource.
      */
-    public function edit(Students $student)  // Changed from Student to Students
+    public function edit(Students $student)
     {
         $courses = Course::all();
         return view('students.edit', compact('student', 'courses'));
@@ -70,7 +71,7 @@ class StudentController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, Students $student)  // Changed from Student to Students
+    public function update(Request $request, Students $student)
     {
         $validated = $request->validate([
             'first_name' => 'required|string|max:255',
@@ -92,11 +93,133 @@ class StudentController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(Students $student)  // Changed from Student to Students
+    public function destroy(Students $student)
     {
         $student->delete();
 
         return redirect()->route('students.index')
                          ->with('success', 'Student deleted successfully!');
+    }
+
+    /**
+     * Search for students by name, admission number, or ID (API)
+     * ⭐ IMPORTANT: This method name MUST NOT conflict with route model binding
+     */
+    public function search(Request $request)
+    {
+        try {
+            $query = $request->input('query', '');
+            
+            // Return empty if query is too short
+            if (strlen($query) < 2) {
+                return response()->json([]);
+            }
+            
+            // Search for students
+            $students = Students::with('course')
+                ->where(function($q) use ($query) {
+                    $q->where('first_name', 'like', "%{$query}%")
+                      ->orWhere('last_name', 'like', "%{$query}%")
+                      ->orWhere(DB::raw("CONCAT(first_name, ' ', last_name)"), 'like', "%{$query}%")
+                      ->orWhere('admission_number', 'like', "%{$query}%")
+                      ->orWhere('id', $query);
+                })
+                ->limit(20)
+                ->get();
+            
+            // Format the response
+            $formattedStudents = $students->map(function($student) {
+                return [
+                    'id' => $student->id,
+                    'name' => trim(($student->first_name ?? '') . ' ' . ($student->last_name ?? '')),
+                    'admission_number' => $student->admission_number ?? 'N/A',
+                    'phone' => $student->phone ?? '',
+                    'course' => $student->course->course_name ?? 'N/A',
+                ];
+            });
+            
+            return response()->json($formattedStudents);
+            
+        } catch (\Exception $e) {
+            // Log the error for debugging
+            Log::error('Student search error: ' . $e->getMessage());
+            
+            // Return empty array instead of error to prevent UI issues
+            return response()->json([]);
+        }
+    }
+
+    /**
+     * Get a single student by ID (API)
+     */
+    public function getStudent(Request $request)
+    {
+        try {
+            $id = $request->input('id');
+            
+            if (!$id) {
+                return response()->json(['error' => 'Student ID is required'], 400);
+            }
+            
+            $student = Students::with('course')->find($id);
+            
+            if (!$student) {
+                return response()->json(['error' => 'Student not found'], 404);
+            }
+            
+            return response()->json([
+                'id' => $student->id,
+                'name' => trim(($student->first_name ?? '') . ' ' . ($student->last_name ?? '')),
+                'admission_number' => $student->admission_number ?? 'N/A',
+                'phone' => $student->phone ?? '',
+                'course' => $student->course->course_name ?? 'N/A',
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error('Get student error: ' . $e->getMessage());
+            return response()->json(['error' => 'Failed to fetch student'], 500);
+        }
+    }
+
+    // Add any missing methods that are referenced in routes
+    public function dashboard() 
+    {
+        return view('students.dashboard');
+    }
+
+    public function export() 
+    {
+        // Export logic
+        return redirect()->back()->with('info', 'Export feature coming soon');
+    }
+
+    public function trash() 
+    {
+        $students = Students::onlyTrashed()->get();
+        return view('students.trash', compact('students'));
+    }
+
+    public function restore($id) 
+    {
+        $student = Students::onlyTrashed()->findOrFail($id);
+        $student->restore();
+        return redirect()->route('students.index')->with('success', 'Student restored successfully!');
+    }
+
+    public function forceDelete($id) 
+    {
+        $student = Students::onlyTrashed()->findOrFail($id);
+        $student->forceDelete();
+        return redirect()->route('students.trash')->with('success', 'Student permanently deleted!');
+    }
+
+    public function apiIndex() 
+    {
+        return response()->json(Students::all());
+    }
+
+    public function apiShow($id) 
+    {
+        return response()->json(Students::findOrFail($id));
     }
 }

@@ -35,6 +35,18 @@ Route::get('/dashboard', [DashboardController::class, 'index'])
     ->middleware(['auth', 'verified'])
     ->name('dashboard');
 
+// ==================== STUDENT EXTRA ROUTES (BEFORE RESOURCE) ====================
+Route::middleware('auth')->group(function () {
+    // ⭐ These MUST be before the resource route to avoid conflicts
+    Route::get('/students/search', [StudentController::class, 'search'])->name('students.search');
+    Route::get('/students/get', [StudentController::class, 'getStudent'])->name('students.get');
+    Route::get('/students/dashboard', [StudentController::class, 'dashboard'])->name('students.dashboard');
+    Route::get('/students/export', [StudentController::class, 'export'])->name('students.export');
+    Route::get('/students/trash', [StudentController::class, 'trash'])->name('students.trash');
+    Route::post('/students/{id}/restore', [StudentController::class, 'restore'])->name('students.restore');
+    Route::delete('/students/{id}/force-delete', [StudentController::class, 'forceDelete'])->name('students.force-delete');
+});
+
 // ==================== RESOURCE ROUTES ====================
 Route::resource('students', StudentController::class)->middleware('auth');
 Route::resource('courses', CourseController::class)->middleware('auth');
@@ -51,16 +63,6 @@ Route::middleware('auth')->group(function () {
     Route::post('/fees/bulk-delete', [FeeController::class, 'bulkDelete'])->name('fees.bulk-delete');
     Route::get('/fees/export', [FeeController::class, 'export'])->name('fees.export');
     Route::get('/fees/receipt/{id}', [FeeController::class, 'showReceipt'])->name('fees.receipt');
-});
-
-// ==================== STUDENT EXTRA ROUTES ====================
-Route::middleware('auth')->group(function () {
-    Route::get('/students/dashboard', [StudentController::class, 'dashboard'])->name('students.dashboard');
-    Route::get('/students/search', [StudentController::class, 'search'])->name('students.search');
-    Route::get('/students/export', [StudentController::class, 'export'])->name('students.export');
-    Route::get('/students/trash', [StudentController::class, 'trash'])->name('students.trash');
-    Route::post('/students/{id}/restore', [StudentController::class, 'restore'])->name('students.restore');
-    Route::delete('/students/{id}/force-delete', [StudentController::class, 'forceDelete'])->name('students.force-delete');
 });
 
 // ==================== COURSE EXTRA ROUTES ====================
@@ -85,26 +87,16 @@ Route::middleware('auth')->group(function () {
 require __DIR__.'/auth.php';
 
 // ==================== M-PESA ROUTES ====================
-// ⭐ M-Pesa Callback - MUST be public (no auth, no CSRF)
 Route::post('/api/mpesa/callback', [FeeController::class, 'mpesaCallback'])
     ->name('mpesa.callback')
     ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class]);
 
 // ==================== PAYMENT ROUTES ====================
 Route::middleware('auth')->group(function () {
-    // Payment form for students
     Route::get('/student/{student}/pay', [PaymentController::class, 'showPaymentForm'])->name('payment.form');
-    
-    // ⭐ M-Pesa STK Push Initiation (SINGLE DEFINITION)
     Route::post('/mpesa/stkpush', [FeeController::class, 'initiateMpesaPayment'])->name('mpesa.stkpush');
-    
-    // ⭐ M-Pesa Status Check (polling)
     Route::get('/mpesa/status', [FeeController::class, 'checkMpesaStatus'])->name('mpesa.status');
-    
-    // ⭐ M-Pesa Payment (alternative endpoint)
     Route::post('/mpesa/payment', [FeeController::class, 'mpesaPayment'])->name('mpesa.payment');
-
-    // ⭐ M-Pesa Resend STK Push (for an existing pending/failed fee record)
     Route::post('/mpesa/resend', [FeeController::class, 'resendMpesaPayment'])->name('mpesa.resend');
 });
 
@@ -118,14 +110,12 @@ Route::prefix('api')->middleware('auth')->group(function () {
     Route::get('/fees/stats', [FeeController::class, 'apiStats'])->name('api.fees.stats');
     Route::get('/fees/{id}', [FeeController::class, 'apiShow'])->name('api.fees.show');
     Route::get('/dashboard/stats', [DashboardController::class, 'apiStats'])->name('api.dashboard.stats');
-    // ⭐ REMOVED DUPLICATE: Route::get('/fees/report', [FeeController::class, 'report'])->name('fees.report');
 });
 
 // ==================== REPORT ROUTES ====================
 Route::prefix('reports')->middleware('auth')->group(function () {
     Route::get('/dashboard', [ReportController::class, 'dashboard'])->name('reports.dashboard');
     Route::get('/student-statement', [ReportController::class, 'studentStatement'])->name('reports.student-statement');
-    // ⭐ PDF Export Route
     Route::get('/student-statement/pdf', [ReportController::class, 'exportStudentStatementPDF'])->name('reports.student-statement.pdf');
     Route::get('/fee-collection', [ReportController::class, 'feeCollection'])->name('reports.fee-collection');
     Route::get('/outstanding-balances', [ReportController::class, 'outstandingBalances'])->name('reports.outstanding-balances');
