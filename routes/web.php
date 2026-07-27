@@ -166,6 +166,20 @@ Route::prefix('reports')->middleware('auth')->group(function () {
     Route::get('/export/{type}', [ReportController::class, 'export'])->name('reports.export');
 });
 
+
+// ==================== EXAM ROUTES ====================
+Route::middleware('auth')->group(function () {
+    // ⭐ SPECIFIC ROUTES - MUST COME FIRST
+    Route::get('/exams/performance-analysis', [ExamController::class, 'performanceAnalysis'])->name('exams.performance-analysis');
+    Route::get('/exams/report-card/{studentId}/{term}/{academicYear}', [ExamController::class, 'generateReportCard'])->name('exams.report-card');
+    Route::get('/exams/{exam}/record-marks', [ExamController::class, 'recordMarks'])->name('exams.record-marks');
+    Route::post('/exams/{exam}/record-marks', [ExamController::class, 'recordMarks'])->name('exams.record-marks');
+    Route::get('/exams/export/{exam}', [ExamController::class, 'exportResults'])->name('exams.export');
+    
+    // ⭐ RESOURCE ROUTE - MUST COME LAST
+    Route::resource('exams', ExamController::class);
+});
+
 // ==================== ERROR/DEBUG ROUTES ====================
 Route::get('/maintenance', function () {
     return view('maintenance');

@@ -755,6 +755,32 @@
                     </ul>
                 </li>
                 
+                <!-- Exams Dropdown Section - NEW -->
+                <li>
+                    <button class="sidebar-dropdown-toggle" id="examsDropdownToggle" onclick="toggleExamsDropdown()">
+                        <i class="fas fa-book-open"></i> 
+                        <span>Exams &amp; Performance</span>
+                        <span class="arrow" id="examsArrow"><i class="fas fa-chevron-down"></i></span>
+                    </button>
+                    <ul class="sidebar-dropdown-menu" id="examsDropdownMenu">
+                        <li>
+                            <a href="{{ route('exams.index') }}" class="sidebar-link {{ request()->routeIs('exams.index') ? 'active' : '' }}">
+                                <i class="fas fa-list"></i> All Exams
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{{ route('exams.create') }}" class="sidebar-link {{ request()->routeIs('exams.create') ? 'active' : '' }}">
+                                <i class="fas fa-plus-circle"></i> Create Exam
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{{ route('exams.performance-analysis') }}" class="sidebar-link {{ request()->routeIs('exams.performance-analysis') ? 'active' : '' }}">
+                                <i class="fas fa-chart-line"></i> Performance Analysis
+                            </a>
+                        </li>
+                    </ul>
+                </li>
+                
                 <!-- Sidebar Divider -->
                 <li><hr class="sidebar-divider"></li>
                 
@@ -871,6 +897,16 @@
             arrow.classList.toggle('open');
         }
         
+        // Toggle Exams Dropdown - NEW
+        function toggleExamsDropdown() {
+            const menu = document.getElementById('examsDropdownMenu');
+            const arrow = document.getElementById('examsArrow');
+            const toggle = document.getElementById('examsDropdownToggle');
+            
+            menu.classList.toggle('open');
+            arrow.classList.toggle('open');
+        }
+        
         // Toggle Reports Dropdown
         function toggleReportsDropdown() {
             const menu = document.getElementById('reportsDropdownMenu');
@@ -962,6 +998,22 @@
             if (hasActiveFees) {
                 const menu = document.getElementById('feesDropdownMenu');
                 const arrow = document.getElementById('feesArrow');
+                menu.classList.add('open');
+                arrow.classList.add('open');
+            }
+            
+            // Auto-expand exams dropdown if an exams page is active - NEW
+            const examsLinks = document.querySelectorAll('#examsDropdownMenu .sidebar-link');
+            let hasActiveExams = false;
+            examsLinks.forEach(function(link) {
+                if (link.classList.contains('active')) {
+                    hasActiveExams = true;
+                }
+            });
+            
+            if (hasActiveExams) {
+                const menu = document.getElementById('examsDropdownMenu');
+                const arrow = document.getElementById('examsArrow');
                 menu.classList.add('open');
                 arrow.classList.add('open');
             }
