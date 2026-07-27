@@ -38,7 +38,6 @@ Route::get('/dashboard', [DashboardController::class, 'index'])
 
 // ==================== STUDENT EXTRA ROUTES (BEFORE RESOURCE) ====================
 Route::middleware('auth')->group(function () {
-    // Student search routes - supports both 'query' and 'search' parameters
     Route::get('/students/search', [StudentController::class, 'search'])->name('students.search');
     Route::get('/students/filter', [StudentController::class, 'filter'])->name('students.filter');
     Route::get('/students/{id}/details', [StudentController::class, 'details'])->name('students.details');
@@ -50,31 +49,21 @@ Route::middleware('auth')->group(function () {
     Route::delete('/students/{id}/force-delete', [StudentController::class, 'forceDelete'])->name('students.force-delete');
 });
 
-// ==================== NON-FEES RESOURCE ROUTES ====================
-// NOTE: 'fees' resource route is intentionally registered LOWER DOWN,
-// after all /fees/* specific routes, to avoid GET /fees/{fee} swallowing
-// literal paths like /fees/search-student, /fees/stats, /fees/report, etc.
+// ==================== RESOURCE ROUTES ====================
 Route::resource('students', StudentController::class)->middleware('auth');
 Route::resource('courses', CourseController::class)->middleware('auth');
 Route::resource('fee-structures', FeeStructureController::class)->middleware('auth');
 
 // ==================== FEE STRUCTURE EXTRA ROUTES ====================
 Route::middleware('auth')->group(function () {
-    Route::get('/fee-structures/class/{classId}', [FeeStructureController::class, 'getFeesByClass'])
-        ->name('fee-structures.by-class');
-    Route::get('/fee-structures/grade/{gradeId}', [FeeStructureController::class, 'getFeesByGrade'])
-        ->name('fee-structures.by-grade');
-    Route::post('/fee-structures/toggle-status/{id}', [FeeStructureController::class, 'toggleStatus'])
-        ->name('fee-structures.toggle-status');
-    Route::delete('/fee-structures/bulk-delete', [FeeStructureController::class, 'bulkDelete'])
-        ->name('fee-structures.bulk-delete');
+    Route::get('/fee-structures/class/{classId}', [FeeStructureController::class, 'getFeesByClass'])->name('fee-structures.by-class');
+    Route::get('/fee-structures/grade/{gradeId}', [FeeStructureController::class, 'getFeesByGrade'])->name('fee-structures.by-grade');
+    Route::post('/fee-structures/toggle-status/{id}', [FeeStructureController::class, 'toggleStatus'])->name('fee-structures.toggle-status');
+    Route::delete('/fee-structures/bulk-delete', [FeeStructureController::class, 'bulkDelete'])->name('fee-structures.bulk-delete');
 });
 
 // ==================== FEE EXTRA ROUTES (MUST COME BEFORE fees RESOURCE ROUTE) ====================
 Route::middleware('auth')->group(function () {
-    // Student search for fee creation (AJAX)
-    Route::get('/fees/search-student', [FeeController::class, 'searchStudent'])->name('fees.search-student');
-
     Route::get('/fees/report', [FeeController::class, 'report'])->name('fees.report');
     Route::get('/fees/stats', [FeeController::class, 'stats'])->name('fees.stats');
     Route::get('/fees/student/{studentId}', [FeeController::class, 'studentFees'])->name('fees.student');
@@ -83,24 +72,11 @@ Route::middleware('auth')->group(function () {
     Route::post('/fees/bulk-delete', [FeeController::class, 'bulkDelete'])->name('fees.bulk-delete');
     Route::get('/fees/export', [FeeController::class, 'export'])->name('fees.export');
     Route::get('/fees/receipt/{id}', [FeeController::class, 'showReceipt'])->name('fees.receipt');
-
-    // Fee calculation routes (AJAX) - QUERY PARAMETER VERSION (USED BY JAVASCRIPT)
-    Route::get('/fees/calculate-expected', [FeeController::class, 'calculateExpected'])
-        ->name('fees.calculate-expected');
-    Route::get('/fees/get-fee-structures', [FeeController::class, 'getFeeStructures'])
-        ->name('fees.get-fee-structures');
-
-    // Alternative with path parameters (for backward compatibility - NOT USED BY JS)
-    Route::get('/fees/calculate-expected/{studentId}/{term}/{academicYear}', [FeeController::class, 'calculateExpected'])
-        ->name('fees.calculate-expected-path');
-    Route::get('/fees/get-fee-structures/{studentId}/{term}/{academicYear}', [FeeController::class, 'getFeeStructures'])
-        ->name('fees.get-fee-structures-path');
+    Route::get('/fees/calculate-expected', [FeeController::class, 'calculateExpected'])->name('fees.calculate-expected');
+    Route::get('/fees/get-fee-structures', [FeeController::class, 'getFeeStructures'])->name('fees.get-fee-structures');
 });
 
 // ==================== FEES RESOURCE ROUTE ====================
-// Registered LAST (after all literal /fees/* routes above) so that
-// GET /fees/{fee} (the resource's "show" route) never swallows paths
-// like /fees/search-student before they get a chance to match.
 Route::resource('fees', FeeController::class)->middleware('auth');
 
 // ==================== COURSE EXTRA ROUTES ====================
@@ -166,18 +142,19 @@ Route::prefix('reports')->middleware('auth')->group(function () {
     Route::get('/export/{type}', [ReportController::class, 'export'])->name('reports.export');
 });
 
-
-// ==================== EXAM ROUTES ====================
+// ==================== ⭐ EXAM ROUTES (FIXED - NO DUPLICATES) ====================
 Route::middleware('auth')->group(function () {
-    // ⭐ SPECIFIC ROUTES - MUST COME FIRST
-    Route::get('/exams/performance-analysis', [ExamController::class, 'performanceAnalysis'])->name('exams.performance-analysis');
-    Route::get('/exams/report-card/{studentId}/{term}/{academicYear}', [ExamController::class, 'generateReportCard'])->name('exams.report-card');
+    // ⭐ CUSTOM RECORD-MARKS ROUTES (NOT in resource)
     Route::get('/exams/{exam}/record-marks', [ExamController::class, 'recordMarks'])->name('exams.record-marks');
     Route::post('/exams/{exam}/record-marks', [ExamController::class, 'recordMarks'])->name('exams.record-marks');
+    
+    // ⭐ EXTRA ROUTES
+    Route::get('/exams/performance-analysis', [ExamController::class, 'performanceAnalysis'])->name('exams.performance-analysis');
+    Route::get('/exams/report-card/{studentId}/{term}/{academicYear}', [ExamController::class, 'generateReportCard'])->name('exams.report-card');
     Route::get('/exams/export/{exam}', [ExamController::class, 'exportResults'])->name('exams.export');
     
-    // ⭐ RESOURCE ROUTE - MUST COME LAST
-    Route::resource('exams', ExamController::class);
+    // ⭐ RESOURCE ROUTE - EXCLUDING the routes we already defined
+    Route::resource('exams', ExamController::class)->except(['record-marks']);
 });
 
 // ==================== ERROR/DEBUG ROUTES ====================
