@@ -170,6 +170,14 @@ class FeeController extends Controller
                             ->orderBy('last_name')
                             ->get();
         
+        // Calculate fee information for each student
+        foreach ($students as $student) {
+            $student->total_fees = $this->calculateStudentTotalFees($student);
+            $student->total_paid = $this->calculateStudentTotalPaid($student);
+            $student->balance = $student->total_fees - $student->total_paid;
+            $student->payment_status = $this->getPaymentStatus($student->balance, $student->total_fees);
+        }
+        
         $paymentMethods = ['Cash', 'Bank Transfer', 'Cheque', 'M-Pesa', 'Credit Card', 'Other'];
         $feeTypes = FeeStructure::distinct('fee_type')->pluck('fee_type')->filter()->values();
         if ($feeTypes->isEmpty()) {
@@ -191,6 +199,79 @@ class FeeController extends Controller
             'classes',
             'grades'
         ));
+    }
+
+    /**
+     * Calculate total fees for a student.
+     */
+    private function calculateStudentTotalFees($student)
+    {
+        // Get fee structures
+        $feeStructures = FeeStructure::where('status', 'active')
+            ->where(function($query) use ($student) {
+                $query->where('class_id', $student->class_id)
+                      ->orWhereNull('class_id');
+            })
+            ->where(function($query) use ($student) {
+                $query->where('grade_id', $student->grade_id)
+                      ->orWhereNull('grade_id');
+            })
+            ->get();
+        
+        return $feeStructures->sum('amount') ?? 0;
+    }
+
+    /**
+     * Calculate total paid for a student.
+     */
+    private function calculateStudentTotalPaid($student)
+    {
+        // First check fees table
+        $totalPaid = Fee::where('student_id', $student->id)
+            ->where('status', 'paid')
+            ->sum('amount_paid') ?? 0;
+        
+        // If no fees, check payments table if it exists
+        if ($totalPaid == 0 && Schema::hasTable('payments')) {
+            try {
+                $totalPaid = \App\Models\Payment::where('student_id', $student->id)
+                    ->where('status', 'paid')
+                    ->sum('amount') ?? 0;
+            } catch (\Exception $e) {
+                // Payments table might not exist or have different structure
+            }
+        }
+        
+        return $totalPaid;
+    }
+
+    /**
+     * Get payment status.
+     */
+    private function getPaymentStatus($balance, $totalFees)
+    {
+        if ($totalFees == 0) {
+            return 'No Data';
+        }
+        
+        if ($balance <= 0) {
+            return 'Paid';
+        }
+        
+        // Check for overdue payments
+        $hasOverdue = Fee::where('student_id', $student->id ?? 0)
+            ->where('status', 'overdue')
+            ->exists();
+        
+        if ($hasOverdue) {
+            return 'Overdue';
+        }
+        
+        if ($balance > 0 && $balance < $totalFees) {
+            return 'Partial';
+        }
+        
+        return 'Pending';
     }
 
     /**
@@ -608,22 +689,71 @@ class FeeController extends Controller
 
             // Get fee structures for this student
             $feeStructures = FeeStructure::active()
-                ->where('class_id', $student->class_id)
-                ->where('grade_id', $student->grade_id)
+                ->where(function($query) use ($student) {
+                    $query->where('class_id', $student->class_id)
+                          ->orWhereNull('class_id');
+                })
+                ->where(function($query) use ($student) {
+                    $query->where('grade_id', $student->grade_id)
+                          ->orWhereNull('grade_id');
+                })
                 ->where('term', $term)
                 ->where('academic_year', $academicYear)
                 ->get();
 
+            // Get existing fees for this student
+            $existingFees = Fee::where('student_id', $studentId)
+                ->where('term', $term)
+                ->where('academic_year', $academicYear)
+                ->get();
+
+            $totalExpected = $feeStructures->sum('amount') ?? 0;
+            $totalPaid = $existingFees->where('status', 'paid')->sum('amount_paid') ?? 0;
+            $balance = $totalExpected - $totalPaid;
+
             // Get payment summary
-            $summary = Fee::getStudentPaymentSummary($studentId, $term, $academicYear);
+            $summary = [
+                'expected' => $totalExpected,
+                'paid' => $totalPaid,
+                'balance' => max(0, $balance),
+                'all_paid' => $balance <= 0,
+                'payment_percentage' => $totalExpected > 0 ? round(($totalPaid / $totalExpected) * 100, 2) : 0,
+                'fee_count' => $feeStructures->count(),
+                'paid_count' => $existingFees->where('status', 'paid')->count(),
+                'pending_count' => $existingFees->where('status', 'pending')->count(),
+                'overdue_count' => $existingFees->where('status', 'overdue')->count(),
+            ];
 
             // Get detailed fee breakdown
-            $feeBreakdown = Fee::getStudentFeesByStructure($studentId, $term, $academicYear);
+            $feeBreakdown = $feeStructures->map(function($structure) use ($existingFees) {
+                $structureFees = $existingFees->where('fee_structure_id', $structure->id);
+                $paid = $structureFees->where('status', 'paid')->sum('amount_paid');
+                $balance = $structure->amount - $paid;
+                
+                return [
+                    'id' => $structure->id,
+                    'fee_type' => $structure->fee_type,
+                    'amount' => $structure->amount,
+                    'description' => $structure->description,
+                    'is_compulsory' => $structure->is_compulsory,
+                    'due_date' => $structure->due_date,
+                    'total_paid' => $paid,
+                    'balance' => max(0, $balance),
+                    'is_fully_paid' => $balance <= 0,
+                    'payment_percentage' => $structure->amount > 0 ? round(($paid / $structure->amount) * 100, 2) : 0,
+                ];
+            });
 
             return response()->json([
                 'success' => true,
                 'data' => [
-                    'student' => $student,
+                    'student' => [
+                        'id' => $student->id,
+                        'name' => $student->name,
+                        'admission_number' => $student->admission_number,
+                        'class_name' => $student->class->name ?? 'N/A',
+                        'grade_name' => $student->grade->name ?? 'N/A',
+                    ],
                     'fee_structures' => $feeStructures,
                     'summary' => $summary,
                     'breakdown' => $feeBreakdown,
@@ -672,8 +802,14 @@ class FeeController extends Controller
             }
 
             $feeStructures = FeeStructure::active()
-                ->where('class_id', $student->class_id)
-                ->where('grade_id', $student->grade_id)
+                ->where(function($query) use ($student) {
+                    $query->where('class_id', $student->class_id)
+                          ->orWhereNull('class_id');
+                })
+                ->where(function($query) use ($student) {
+                    $query->where('grade_id', $student->grade_id)
+                          ->orWhereNull('grade_id');
+                })
                 ->where('term', $term)
                 ->where('academic_year', $academicYear)
                 ->get();
@@ -717,6 +853,73 @@ class FeeController extends Controller
                 'success' => false,
                 'message' => 'Failed to get fee structures: ' . $e->getMessage()
             ], 500);
+        }
+    }
+
+    /**
+     * Search for students with their fee information (AJAX)
+     */
+    public function searchStudent(Request $request)
+    {
+        try {
+            $search = $request->input('search', '');
+            
+            if (empty($search) || strlen($search) < 1) {
+                return response()->json([]);
+            }
+            
+            $students = Students::with(['class', 'grade', 'course'])
+                ->where(function($query) use ($search) {
+                    $query->where('first_name', 'LIKE', "%{$search}%")
+                          ->orWhere('last_name', 'LIKE', "%{$search}%")
+                          ->orWhere(DB::raw("CONCAT(first_name, ' ', last_name)"), 'LIKE', "%{$search}%")
+                          ->orWhere('admission_number', 'LIKE', "%{$search}%")
+                          ->orWhere('email', 'LIKE', "%{$search}%")
+                          ->orWhere('phone', 'LIKE', "%{$search}%");
+                })
+                ->limit(20)
+                ->get();
+            
+            $formattedStudents = [];
+            foreach ($students as $student) {
+                // Calculate fee information
+                $totalFees = $this->calculateStudentTotalFees($student);
+                $totalPaid = $this->calculateStudentTotalPaid($student);
+                $balance = $totalFees - $totalPaid;
+                $status = $this->getPaymentStatus($balance, $totalFees);
+                
+                $formattedStudents[] = [
+                    'id' => $student->id,
+                    'first_name' => $student->first_name ?? '',
+                    'last_name' => $student->last_name ?? '',
+                    'full_name' => $student->name,
+                    'name' => $student->name,
+                    'admission_number' => $student->admission_number ?? 'N/A',
+                    'phone' => $student->phone ?? '',
+                    'email' => $student->email ?? '',
+                    'address' => $student->address ?? '',
+                    'course_name' => $student->course->course_name ?? $student->course->name ?? 'N/A',
+                    'course_id' => $student->course_id,
+                    'class_name' => $student->class->name ?? 'N/A',
+                    'class_id' => $student->class_id,
+                    'grade_name' => $student->grade->name ?? 'N/A',
+                    'grade_id' => $student->grade_id,
+                    'status' => $student->status ?? 'active',
+                    // Fee information
+                    'total_fees' => $totalFees,
+                    'total_paid' => $totalPaid,
+                    'balance' => $balance,
+                    'payment_status' => $status,
+                    'payment_status_label' => $status,
+                    'payment_status_color' => $status === 'Paid' ? 'success' : ($status === 'Partial' ? 'warning' : ($status === 'Overdue' ? 'danger' : 'secondary')),
+                ];
+            }
+            
+            return response()->json($formattedStudents);
+            
+        } catch (\Exception $e) {
+            Log::error('Search Student Error: ' . $e->getMessage());
+            return response()->json([]);
         }
     }
 

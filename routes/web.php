@@ -58,6 +58,9 @@ Route::resource('fee-structures', FeeStructureController::class)->middleware('au
 
 // ==================== FEE EXTRA ROUTES ====================
 Route::middleware('auth')->group(function () {
+    // ⭐ ADD THIS ROUTE - Student search for fee creation (AJAX)
+    Route::get('/fees/search-student', [FeeController::class, 'searchStudent'])->name('fees.search-student');
+    
     Route::get('/fees/report', [FeeController::class, 'report'])->name('fees.report');
     Route::get('/fees/stats', [FeeController::class, 'stats'])->name('fees.stats');
     Route::get('/fees/student/{studentId}', [FeeController::class, 'studentFees'])->name('fees.student');

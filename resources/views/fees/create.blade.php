@@ -661,6 +661,7 @@
         let searchTimeout = null;
         let selectedStudent = null;
         let feeSummaryData = null;
+        let currentStudentId = null;
         
         // Check if there's a pre-selected student (from validation error)
         const preSelectedId = studentIdInput.value;
@@ -692,11 +693,11 @@
             }, 400);
         });
         
-        // Perform search via AJAX
+        // Perform search via AJAX - Using the search-student route
         async function performSearch(query) {
             try {
-                const response = await axios.get('{{ route("students.search") }}', {
-                    params: { query: query }
+                const response = await axios.get('{{ route("fees.search-student") }}', {
+                    params: { search: query }
                 });
                 
                 searchLoading.classList.add('d-none');
@@ -716,23 +717,33 @@
                     item.innerHTML = `
                         <div class="flex-grow-1">
                             <div class="d-flex align-items-center justify-content-between">
-                                <span class="student-name">${highlightMatch(student.name, query)}</span>
-                                <span class="badge bg-primary">#${student.id}</span>
+                                <span class="student-name">${highlightMatch(student.name || student.full_name || '', query)}</span>
+                                <span class="badge ${student.balance > 0 ? 'bg-danger' : 'bg-success'}">
+                                    ${student.balance > 0 ? 'Balance: KES ' + Number(student.balance).toFixed(2) : 'Paid'}
+                                </span>
                             </div>
                             <div class="student-detail">
                                 <i class="fas fa-id-card me-1"></i> ${student.admission_number || 'N/A'}
-                                ${student.course ? `<span class="mx-1">•</span> <i class="fas fa-graduation-cap me-1"></i> ${student.course}` : ''}
+                                ${student.course_name ? `<span class="mx-1">•</span> <i class="fas fa-graduation-cap me-1"></i> ${student.course_name}` : ''}
                                 ${student.phone ? `<span class="mx-1">•</span> <i class="fas fa-phone me-1"></i> ${student.phone}` : ''}
+                                <span class="mx-1">•</span>
+                                <i class="fas fa-money-bill-wave me-1"></i> 
+                                <span class="fw-semibold ${student.balance > 0 ? 'text-danger' : 'text-success'}">
+                                    KES ${Number(student.balance || 0).toFixed(2)}
+                                </span>
                             </div>
                         </div>
                     `;
                     
                     item.addEventListener('click', function(e) {
                         e.preventDefault();
+                        // Store student data
+                        currentStudentId = student.id;
                         selectStudent(student);
+                        // Fetch fee summary using the student ID
                         fetchStudentFeeSummary(student.id);
                         searchResults.style.display = 'none';
-                        searchInput.value = student.name;
+                        searchInput.value = student.name || student.full_name || '';
                     });
                     
                     searchResultsList.appendChild(item);
@@ -757,6 +768,7 @@
                 });
                 
                 if (response.data && response.data.id) {
+                    currentStudentId = studentId;
                     selectStudent(response.data);
                     fetchStudentFeeSummary(studentId);
                 }
@@ -766,14 +778,16 @@
         }
         
         // ============================================
-        // FETCH STUDENT FEE SUMMARY - FIXED
+        // FETCH STUDENT FEE SUMMARY
         // ============================================
         async function fetchStudentFeeSummary(studentId) {
-            const term = document.getElementById('term').value;
-            const academicYear = document.getElementById('academic_year').value;
+            if (!studentId) return;
+            
+            const term = document.getElementById('term').value || 'Term 1';
+            const academicYear = document.getElementById('academic_year').value || date('Y') + '/' + (date('Y')+1);
             
             try {
-                // Use the query parameter version with URL helper
+                // Use the calculate-expected route with query parameters
                 const url = '{{ url("fees/calculate-expected") }}' + 
                     '?student_id=' + encodeURIComponent(studentId) + 
                     '&term=' + encodeURIComponent(term) + 
@@ -784,19 +798,26 @@
                 if (response.data.success) {
                     feeSummaryData = response.data.data;
                     updateFeeSummary(feeSummaryData);
+                } else {
+                    console.warn('Fee summary returned unsuccessful:', response.data.message);
                 }
             } catch (error) {
                 console.error('Error fetching fee summary:', error);
+                // Show error but don't break the UI
+                document.getElementById('totalExpectedFees').textContent = 'KES 0.00';
+                document.getElementById('totalPaidFees').textContent = 'KES 0.00';
+                document.getElementById('outstandingBalance').textContent = 'KES 0.00';
+                document.getElementById('paymentStatusBadge').innerHTML = '<span class="badge bg-danger">Error Loading</span>';
             }
         }
         
         // Update fee summary display
         function updateFeeSummary(data) {
-            const totalExpected = data.total_expected || 0;
-            const totalPaid = data.total_paid || 0;
-            const balance = data.balance || 0;
-            const allPaid = data.all_paid || false;
-            const percentage = data.payment_percentage || 0;
+            const totalExpected = data.total_expected || data.summary?.expected || 0;
+            const totalPaid = data.total_paid || data.summary?.paid || 0;
+            const balance = data.balance || data.summary?.balance || 0;
+            const allPaid = data.all_paid || data.summary?.all_paid || false;
+            const percentage = data.payment_percentage || data.summary?.payment_percentage || 0;
 
             document.getElementById('totalExpectedFees').textContent = 'KES ' + Number(totalExpected).toFixed(2);
             document.getElementById('totalPaidFees').textContent = 'KES ' + Number(totalPaid).toFixed(2);
@@ -811,8 +832,10 @@
                 statusBadge.innerHTML = '<span class="badge bg-danger">✗ Not Paid</span>';
             }
             
-            document.getElementById('paymentProgressBar').style.width = Math.min(percentage, 100) + '%';
-            document.getElementById('paymentProgressBar').className = 'progress-bar ' + (percentage >= 100 ? 'bg-success' : percentage >= 50 ? 'bg-info' : 'bg-warning');
+            const progressBar = document.getElementById('paymentProgressBar');
+            const progressPercent = Math.min(percentage, 100);
+            progressBar.style.width = progressPercent + '%';
+            progressBar.className = 'progress-bar ' + (progressPercent >= 100 ? 'bg-success' : progressPercent >= 50 ? 'bg-info' : 'bg-warning');
             
             // Show balance hint and auto-fill amount
             const balanceHint = document.getElementById('balanceHint');
@@ -826,7 +849,7 @@
                 
                 // Auto-fill amount with balance if empty
                 const amountInput = document.getElementById('amount');
-                if (!amountInput.value || amountInput.value == '0') {
+                if (!amountInput.value || amountInput.value == '0' || amountInput.value == '') {
                     amountInput.value = balance;
                 }
             } else {
@@ -835,21 +858,27 @@
             }
             
             // Update fee type dropdown
-            if (data.fee_structures && data.fee_structures.length > 0) {
+            if (data.breakdown && data.breakdown.length > 0) {
                 const feeTypeSelect = document.getElementById('fee_type');
                 const currentVal = feeTypeSelect.value;
                 feeTypeSelect.innerHTML = '<option value="">— Select Type —</option>';
                 
-                data.fee_structures.forEach(fee => {
+                data.breakdown.forEach(fee => {
                     const opt = document.createElement('option');
                     opt.value = fee.fee_type;
                     opt.textContent = fee.fee_type + ' (KES ' + Number(fee.amount).toFixed(2) + ')';
-                    if (fee.fee_type === currentVal || (!currentVal && data.fee_structures.length === 1)) {
+                    if (fee.fee_type === currentVal || (!currentVal && data.breakdown.length === 1)) {
                         opt.selected = true;
                     }
                     feeTypeSelect.appendChild(opt);
                 });
             }
+        }
+        
+        // Helper: date function for JS
+        function date(format) {
+            const d = new Date();
+            return d.getFullYear();
         }
         
         // Highlight matched text
@@ -870,15 +899,16 @@
             selectedStudent = student;
             studentIdInput.value = student.id;
             
-            document.getElementById('selectedStudentName').textContent = student.name || 'Unknown Student';
+            document.getElementById('selectedStudentName').textContent = student.name || student.full_name || 'Unknown Student';
             document.getElementById('selectedStudentAdmission').textContent = 'Admission: ' + (student.admission_number || 'N/A');
-            document.getElementById('selectedStudentCourse').textContent = 'Course: ' + (student.course || 'N/A');
-            const initial = student.name ? student.name.charAt(0).toUpperCase() : '?';
+            document.getElementById('selectedStudentCourse').textContent = 'Course: ' + (student.course_name || student.course || 'N/A');
+            const initial = student.name ? student.name.charAt(0).toUpperCase() : (student.first_name ? student.first_name.charAt(0).toUpperCase() : '?');
             document.getElementById('selectedStudentInitial').textContent = initial;
             
             selectedDisplay.classList.remove('d-none');
-            searchInput.value = student.name || '';
+            searchInput.value = student.name || student.full_name || '';
             
+            // Update M-Pesa phone if available
             if (student.phone) {
                 const mpesaPhone = document.getElementById('mpesa_phone');
                 const modalPhone = document.getElementById('modal_mpesa_phone');
@@ -888,7 +918,7 @@
             
             const modalStudentName = document.getElementById('modal_student_name');
             if (modalStudentName) {
-                modalStudentName.textContent = student.name || '— No student selected —';
+                modalStudentName.textContent = student.name || student.full_name || '— No student selected —';
             }
             
             searchResults.style.display = 'none';
@@ -907,6 +937,7 @@
         deselectBtn.addEventListener('click', function() {
             selectedStudent = null;
             feeSummaryData = null;
+            currentStudentId = null;
             studentIdInput.value = '';
             selectedDisplay.classList.add('d-none');
             searchInput.value = '';
@@ -932,6 +963,10 @@
             const balance = parseFloat(balanceText.replace('KES ', '')) || 0;
             if (balance > 0) {
                 document.getElementById('amount').value = balance;
+                // Update modal amount as well
+                const modalAmount = document.getElementById('modal_mpesa_amount');
+                if (modalAmount) modalAmount.value = balance;
+                
                 Swal.fire({
                     icon: 'success',
                     title: 'Amount Set',
