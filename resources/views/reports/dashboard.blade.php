@@ -20,11 +20,19 @@
                 
                 <!-- Summary Cards -->
                 <div class="row g-2 g-sm-3 mt-4">
+                    @php
+                        // Fetch all data at once to avoid multiple queries if possible
+                        $totalStudents = \App\Models\Students::count();
+                        $totalRevenue = \App\Models\Fee::sum('amount') ?? 0;
+                        $outstandingBalance = \App\Models\Fee::where('status', 'pending')->orWhere('status', 'overdue')->sum('amount') ?? 0;
+                        $todayCollections = \App\Models\Fee::whereDate('payment_date', date('Y-m-d'))->sum('amount') ?? 0;
+                    @endphp
+                    
                     <div class="col-6 col-lg-3">
                         <div class="card text-white bg-primary h-100">
                             <div class="card-body p-2 p-sm-3">
                                 <h6 class="card-title small mb-1">Total Students</h6>
-                                <h2 class="card-text fw-bold fs-4 fs-md-3">{{ number_format(\App\Models\Students::count()) }}</h2>
+                                <h2 class="card-text fw-bold fs-4 fs-md-3">{{ number_format($totalStudents) }}</h2>
                             </div>
                         </div>
                     </div>
@@ -32,7 +40,7 @@
                         <div class="card text-white bg-success h-100">
                             <div class="card-body p-2 p-sm-3">
                                 <h6 class="card-title small mb-1">Total Revenue</h6>
-                                <h2 class="card-text fw-bold fs-4 fs-md-3">KES {{ number_format(\App\Models\Fee::sum('amount') ?? 0, 0) }}</h2>
+                                <h2 class="card-text fw-bold fs-4 fs-md-3">KES {{ number_format($totalRevenue, 0) }}</h2>
                             </div>
                         </div>
                     </div>
@@ -40,7 +48,7 @@
                         <div class="card text-white bg-warning h-100">
                             <div class="card-body p-2 p-sm-3">
                                 <h6 class="card-title small mb-1">Outstanding Balance</h6>
-                                <h2 class="card-text fw-bold fs-4 fs-md-3">KES {{ number_format(\App\Models\Fee::where('status', 'pending')->orWhere('status', 'overdue')->sum('amount') ?? 0, 0) }}</h2>
+                                <h2 class="card-text fw-bold fs-4 fs-md-3">KES {{ number_format($outstandingBalance, 0) }}</h2>
                             </div>
                         </div>
                     </div>
@@ -48,7 +56,7 @@
                         <div class="card text-white bg-danger h-100">
                             <div class="card-body p-2 p-sm-3">
                                 <h6 class="card-title small mb-1">Today's Collections</h6>
-                                <h2 class="card-text fw-bold fs-4 fs-md-3">KES {{ number_format(\App\Models\Fee::whereDate('payment_date', date('Y-m-d'))->sum('amount') ?? 0, 0) }}</h2>
+                                <h2 class="card-text fw-bold fs-4 fs-md-3">KES {{ number_format($todayCollections, 0) }}</h2>
                             </div>
                         </div>
                     </div>
@@ -108,10 +116,14 @@
                                         </thead>
                                         <tbody>
                                             @php
-                                                $recent = \App\Models\Fee::with('student')
-                                                    ->orderBy('payment_date', 'desc')
-                                                    ->limit(5)
-                                                    ->get();
+                                                try {
+                                                    $recent = \App\Models\Fee::with('student')
+                                                        ->orderBy('payment_date', 'desc')
+                                                        ->limit(5)
+                                                        ->get();
+                                                } catch (\Exception $e) {
+                                                    $recent = collect();
+                                                }
                                             @endphp
                                             @forelse($recent as $fee)
                                                 <tr>
@@ -141,10 +153,17 @@
                             </div>
                             <div class="card-body">
                                 @php
-                                    $totalFees = \App\Models\Fee::sum('amount') ?? 0;
-                                    $totalPaid = \App\Models\Fee::where('status', 'paid')->sum('amount') ?? 0;
-                                    $totalPending = \App\Models\Fee::where('status', 'pending')->sum('amount') ?? 0;
-                                    $totalOverdue = \App\Models\Fee::where('status', 'overdue')->sum('amount') ?? 0;
+                                    try {
+                                        $totalFees = \App\Models\Fee::sum('amount') ?? 0;
+                                        $totalPaid = \App\Models\Fee::where('status', 'paid')->sum('amount') ?? 0;
+                                        $totalPending = \App\Models\Fee::where('status', 'pending')->sum('amount') ?? 0;
+                                        $totalOverdue = \App\Models\Fee::where('status', 'overdue')->sum('amount') ?? 0;
+                                    } catch (\Exception $e) {
+                                        $totalFees = 0;
+                                        $totalPaid = 0;
+                                        $totalPending = 0;
+                                        $totalOverdue = 0;
+                                    }
                                     $paidPercent = $totalFees > 0 ? round(($totalPaid / $totalFees) * 100, 1) : 0;
                                 @endphp
                                 <div class="mb-3">

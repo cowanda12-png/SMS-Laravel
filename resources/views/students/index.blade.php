@@ -11,7 +11,9 @@
             <p class="text-muted small">Manage all students in the system</p>
         </div>
         <div class="d-flex flex-wrap gap-2 mt-2 mt-sm-0">
-            
+            <a href="{{ route('students.export') }}" class="btn btn-success btn-sm">
+                <i class="fas fa-file-export me-1"></i> <span class="d-none d-sm-inline">Export</span>
+            </a>
             <a href="{{ route('students.create') }}" class="btn btn-primary btn-sm">
                 <i class="fas fa-plus me-1"></i> <span class="d-none d-sm-inline">Add New Student</span>
                 <span class="d-inline d-sm-none">Add</span>
