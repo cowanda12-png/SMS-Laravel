@@ -38,8 +38,10 @@ Route::get('/dashboard', [DashboardController::class, 'index'])
 
 // ==================== STUDENT EXTRA ROUTES (BEFORE RESOURCE) ====================
 Route::middleware('auth')->group(function () {
-    // ⭐ These MUST be before the resource route to avoid conflicts
+    // ⭐ Student search routes - supports both 'query' and 'search' parameters
     Route::get('/students/search', [StudentController::class, 'search'])->name('students.search');
+    Route::get('/students/filter', [StudentController::class, 'filter'])->name('students.filter');
+    Route::get('/students/{id}/details', [StudentController::class, 'details'])->name('students.details');
     Route::get('/students/get', [StudentController::class, 'getStudent'])->name('students.get');
     Route::get('/students/dashboard', [StudentController::class, 'dashboard'])->name('students.dashboard');
     Route::get('/students/export', [StudentController::class, 'export'])->name('students.export');
@@ -66,12 +68,17 @@ Route::middleware('auth')->group(function () {
     Route::get('/fees/export', [FeeController::class, 'export'])->name('fees.export');
     Route::get('/fees/receipt/{id}', [FeeController::class, 'showReceipt'])->name('fees.receipt');
 
-    // Update existing fee routes
-    Route::get('/fees/calculate-expected/{studentId}/{term}/{academicYear}', [FeeController::class, 'calculateExpected'])
+    // Fee calculation routes (AJAX)
+    Route::get('/fees/calculate-expected', [FeeController::class, 'calculateExpected'])
         ->name('fees.calculate-expected');
-
-    Route::get('/fees/get-fee-structures/{studentId}/{term}/{academicYear}', [FeeController::class, 'getFeeStructures'])
+    Route::get('/fees/get-fee-structures', [FeeController::class, 'getFeeStructures'])
         ->name('fees.get-fee-structures');
+
+    // Alternative with path parameters (for backward compatibility)
+    Route::get('/fees/calculate-expected/{studentId}/{term}/{academicYear}', [FeeController::class, 'calculateExpected'])
+        ->name('fees.calculate-expected-path');
+    Route::get('/fees/get-fee-structures/{studentId}/{term}/{academicYear}', [FeeController::class, 'getFeeStructures'])
+        ->name('fees.get-fee-structures-path');
 });
 
 // ==================== FEE STRUCTURE EXTRA ROUTES ====================
@@ -181,5 +188,15 @@ Route::get('/test-mpesa', function() {
             'shortcode' => env('MPESA_SHORTCODE', '174379'),
             'environment' => env('MPESA_ENV', 'sandbox'),
         ]
+    ]);
+});
+
+// ==================== DEPLOYMENT HEALTH CHECK ====================
+Route::get('/deploy-health', function () {
+    return response()->json([
+        'status' => 'ok',
+        'timestamp' => now()->toISOString(),
+        'app' => config('app.name'),
+        'environment' => app()->environment(),
     ]);
 });
