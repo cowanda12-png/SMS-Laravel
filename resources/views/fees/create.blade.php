@@ -248,16 +248,22 @@
 
                             <div class="col-6 col-sm-12 col-md-4">
                                 <label for="academic_year" class="form-label fw-semibold">Academic Year</label>
+                                {{--
+                                    FIX: previously this dropdown emitted slash-separated values like
+                                    "2026/2027", but FeeStructure records store plain years (e.g. "2026"),
+                                    the same format FeeController::create() generates via
+                                    range(date('Y') - 1, date('Y') + 1). That mismatch caused
+                                    calculateExpected() to filter out all matching fee structures,
+                                    showing "Expected: 0 / Balance: 0 / Fully Paid" even for students
+                                    with an outstanding balance. Now uses the same $academicYears
+                                    variable (plain years) passed from the controller.
+                                --}}
                                 <select name="academic_year" id="academic_year" class="form-select">
-                                    <option value="{{ date('Y') }}/{{ date('Y')+1 }}" selected>
-                                        {{ date('Y') }}/{{ date('Y')+1 }}
-                                    </option>
-                                    <option value="{{ date('Y')-1 }}/{{ date('Y') }}">
-                                        {{ date('Y')-1 }}/{{ date('Y') }}
-                                    </option>
-                                    <option value="{{ date('Y')+1 }}/{{ date('Y')+2 }}">
-                                        {{ date('Y')+1 }}/{{ date('Y')+2 }}
-                                    </option>
+                                    @foreach($academicYears as $year)
+                                        <option value="{{ $year }}" {{ (old('academic_year', date('Y')) == $year) ? 'selected' : '' }}>
+                                            {{ $year }}
+                                        </option>
+                                    @endforeach
                                 </select>
                             </div>
                         </div>
@@ -784,7 +790,10 @@
             if (!studentId) return;
             
             const term = document.getElementById('term').value || 'Term 1';
-            const academicYear = document.getElementById('academic_year').value || date('Y') + '/' + (date('Y')+1);
+            // FIX: academic_year select now emits a plain year (e.g. "2026"),
+            // matching what's stored in fee_structures. The fallback below
+            // (used only if the select is somehow empty) is updated to match.
+            const academicYear = document.getElementById('academic_year').value || String(new Date().getFullYear());
             
             try {
                 // Use the calculate-expected route with query parameters
@@ -873,12 +882,6 @@
                     feeTypeSelect.appendChild(opt);
                 });
             }
-        }
-        
-        // Helper: date function for JS
-        function date(format) {
-            const d = new Date();
-            return d.getFullYear();
         }
         
         // Highlight matched text
