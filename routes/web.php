@@ -53,7 +53,6 @@ Route::middleware('auth')->group(function () {
 // ==================== RESOURCE ROUTES ====================
 Route::resource('students', StudentController::class)->middleware('auth');
 Route::resource('courses', CourseController::class)->middleware('auth');
-Route::resource('exams', ExamController::class)->middleware('auth');
 Route::resource('fees', FeeController::class)->middleware('auth');
 Route::resource('fee-structures', FeeStructureController::class)->middleware('auth');
 
@@ -68,13 +67,13 @@ Route::middleware('auth')->group(function () {
     Route::get('/fees/export', [FeeController::class, 'export'])->name('fees.export');
     Route::get('/fees/receipt/{id}', [FeeController::class, 'showReceipt'])->name('fees.receipt');
 
-    // Fee calculation routes (AJAX)
+    // ⭐ Fee calculation routes (AJAX) - QUERY PARAMETER VERSION (USED BY JAVASCRIPT)
     Route::get('/fees/calculate-expected', [FeeController::class, 'calculateExpected'])
         ->name('fees.calculate-expected');
     Route::get('/fees/get-fee-structures', [FeeController::class, 'getFeeStructures'])
         ->name('fees.get-fee-structures');
 
-    // Alternative with path parameters (for backward compatibility)
+    // ⭐ Alternative with path parameters (for backward compatibility - NOT USED BY JS)
     Route::get('/fees/calculate-expected/{studentId}/{term}/{academicYear}', [FeeController::class, 'calculateExpected'])
         ->name('fees.calculate-expected-path');
     Route::get('/fees/get-fee-structures/{studentId}/{term}/{academicYear}', [FeeController::class, 'getFeeStructures'])

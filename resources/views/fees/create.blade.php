@@ -86,7 +86,7 @@
                                 </div>
                             </div>
                             
-                            <!-- Selected Student Display -->
+                            <!-- Selected Student Display with Balance -->
                             <div id="selectedStudentDisplay" class="mt-3 p-3 bg-light rounded-3 border @if(!old('student_id')) d-none @endif">
                                 <div class="d-flex align-items-center justify-content-between">
                                     <div class="d-flex align-items-center">
@@ -106,6 +106,43 @@
                                     <button type="button" class="btn btn-sm btn-outline-danger" id="deselectStudent">
                                         <i class="fas fa-times"></i>
                                     </button>
+                                </div>
+                                
+                                <!-- Balance Information -->
+                                <div class="mt-3 pt-3 border-top" id="feeSummarySection">
+                                    <div class="row g-2">
+                                        <div class="col-6">
+                                            <div class="d-flex justify-content-between align-items-center p-2 rounded" style="background: #e9ecef;">
+                                                <span class="text-muted small">Expected:</span>
+                                                <span class="fw-bold" id="totalExpectedFees">KES 0.00</span>
+                                            </div>
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="d-flex justify-content-between align-items-center p-2 rounded" style="background: #d4edda;">
+                                                <span class="text-muted small">Paid:</span>
+                                                <span class="fw-bold text-success" id="totalPaidFees">KES 0.00</span>
+                                            </div>
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="d-flex justify-content-between align-items-center p-2 rounded" style="background: #f8d7da;">
+                                                <span class="text-muted small">Balance:</span>
+                                                <span class="fw-bold text-danger" id="outstandingBalance">KES 0.00</span>
+                                            </div>
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="d-flex justify-content-between align-items-center p-2 rounded" style="background: #cce5ff;">
+                                                <span class="text-muted small">Status:</span>
+                                                <span class="fw-bold" id="paymentStatusBadge">
+                                                    <span class="badge bg-secondary">No Data</span>
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="mt-2">
+                                        <div class="progress" style="height: 6px;">
+                                            <div id="paymentProgressBar" class="progress-bar bg-info" role="progressbar" style="width: 0%;"></div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                             
@@ -188,6 +225,12 @@
                                     <button type="button" class="btn btn-sm btn-outline-secondary flex-fill" onclick="quickAmount(10000)">10K</button>
                                     <button type="button" class="btn btn-sm btn-outline-secondary flex-fill" onclick="quickAmount(15000)">15K</button>
                                     <button type="button" class="btn btn-sm btn-outline-secondary flex-fill" onclick="quickAmount(20000)">20K</button>
+                                    <button type="button" class="btn btn-sm btn-success flex-fill" id="payFullBalanceBtn" style="display:none;">
+                                        <i class="fas fa-check-circle me-1"></i> Full Balance
+                                    </button>
+                                </div>
+                                <div id="balanceHint" class="small text-muted mt-1 d-none">
+                                    <i class="fas fa-info-circle me-1"></i> Outstanding balance: <span id="hintBalanceAmount">KES 0.00</span>
                                 </div>
                                 @error('amount')
                                     <div class="invalid-feedback d-block">{{ $message }}</div>
@@ -279,6 +322,9 @@
                                     </option>
                                     <option value="overdue" {{ old('status') == 'overdue' ? 'selected' : '' }}>
                                         Overdue
+                                    </option>
+                                    <option value="partial" {{ old('status') == 'partial' ? 'selected' : '' }}>
+                                        Partial
                                     </option>
                                 </select>
                             </div>
@@ -610,9 +656,11 @@
         const selectedDisplay = document.getElementById('selectedStudentDisplay');
         const clearSearchBtn = document.getElementById('clearSearchBtn');
         const deselectBtn = document.getElementById('deselectStudent');
+        const payFullBalanceBtn = document.getElementById('payFullBalanceBtn');
         
         let searchTimeout = null;
         let selectedStudent = null;
+        let feeSummaryData = null;
         
         // Check if there's a pre-selected student (from validation error)
         const preSelectedId = studentIdInput.value;
@@ -682,6 +730,7 @@
                     item.addEventListener('click', function(e) {
                         e.preventDefault();
                         selectStudent(student);
+                        fetchStudentFeeSummary(student.id);
                         searchResults.style.display = 'none';
                         searchInput.value = student.name;
                     });
@@ -709,9 +758,97 @@
                 
                 if (response.data && response.data.id) {
                     selectStudent(response.data);
+                    fetchStudentFeeSummary(studentId);
                 }
             } catch (error) {
                 console.error('Error fetching student:', error);
+            }
+        }
+        
+        // ============================================
+        // FETCH STUDENT FEE SUMMARY - FIXED
+        // ============================================
+        async function fetchStudentFeeSummary(studentId) {
+            const term = document.getElementById('term').value;
+            const academicYear = document.getElementById('academic_year').value;
+            
+            try {
+                // Use the query parameter version with URL helper
+                const url = '{{ url("fees/calculate-expected") }}' + 
+                    '?student_id=' + encodeURIComponent(studentId) + 
+                    '&term=' + encodeURIComponent(term) + 
+                    '&academic_year=' + encodeURIComponent(academicYear);
+                
+                const response = await axios.get(url);
+                
+                if (response.data.success) {
+                    feeSummaryData = response.data.data;
+                    updateFeeSummary(feeSummaryData);
+                }
+            } catch (error) {
+                console.error('Error fetching fee summary:', error);
+            }
+        }
+        
+        // Update fee summary display
+        function updateFeeSummary(data) {
+            const totalExpected = data.total_expected || 0;
+            const totalPaid = data.total_paid || 0;
+            const balance = data.balance || 0;
+            const allPaid = data.all_paid || false;
+            const percentage = data.payment_percentage || 0;
+
+            document.getElementById('totalExpectedFees').textContent = 'KES ' + Number(totalExpected).toFixed(2);
+            document.getElementById('totalPaidFees').textContent = 'KES ' + Number(totalPaid).toFixed(2);
+            document.getElementById('outstandingBalance').textContent = 'KES ' + Number(balance).toFixed(2);
+            
+            const statusBadge = document.getElementById('paymentStatusBadge');
+            if (allPaid) {
+                statusBadge.innerHTML = '<span class="badge bg-success">✓ Fully Paid</span>';
+            } else if (totalPaid > 0) {
+                statusBadge.innerHTML = '<span class="badge bg-warning text-dark">⚠ Partially Paid</span>';
+            } else {
+                statusBadge.innerHTML = '<span class="badge bg-danger">✗ Not Paid</span>';
+            }
+            
+            document.getElementById('paymentProgressBar').style.width = Math.min(percentage, 100) + '%';
+            document.getElementById('paymentProgressBar').className = 'progress-bar ' + (percentage >= 100 ? 'bg-success' : percentage >= 50 ? 'bg-info' : 'bg-warning');
+            
+            // Show balance hint and auto-fill amount
+            const balanceHint = document.getElementById('balanceHint');
+            const hintBalance = document.getElementById('hintBalanceAmount');
+            if (balance > 0) {
+                balanceHint.classList.remove('d-none');
+                hintBalance.textContent = 'KES ' + Number(balance).toFixed(2);
+                
+                // Show full balance button
+                document.getElementById('payFullBalanceBtn').style.display = 'block';
+                
+                // Auto-fill amount with balance if empty
+                const amountInput = document.getElementById('amount');
+                if (!amountInput.value || amountInput.value == '0') {
+                    amountInput.value = balance;
+                }
+            } else {
+                balanceHint.classList.add('d-none');
+                document.getElementById('payFullBalanceBtn').style.display = 'none';
+            }
+            
+            // Update fee type dropdown
+            if (data.fee_structures && data.fee_structures.length > 0) {
+                const feeTypeSelect = document.getElementById('fee_type');
+                const currentVal = feeTypeSelect.value;
+                feeTypeSelect.innerHTML = '<option value="">— Select Type —</option>';
+                
+                data.fee_structures.forEach(fee => {
+                    const opt = document.createElement('option');
+                    opt.value = fee.fee_type;
+                    opt.textContent = fee.fee_type + ' (KES ' + Number(fee.amount).toFixed(2) + ')';
+                    if (fee.fee_type === currentVal || (!currentVal && data.fee_structures.length === 1)) {
+                        opt.selected = true;
+                    }
+                    feeTypeSelect.appendChild(opt);
+                });
             }
         }
         
@@ -769,14 +906,52 @@
         // Deselect student
         deselectBtn.addEventListener('click', function() {
             selectedStudent = null;
+            feeSummaryData = null;
             studentIdInput.value = '';
             selectedDisplay.classList.add('d-none');
             searchInput.value = '';
             searchInput.focus();
             
+            document.getElementById('totalExpectedFees').textContent = 'KES 0.00';
+            document.getElementById('totalPaidFees').textContent = 'KES 0.00';
+            document.getElementById('outstandingBalance').textContent = 'KES 0.00';
+            document.getElementById('paymentStatusBadge').innerHTML = '<span class="badge bg-secondary">No Data</span>';
+            document.getElementById('paymentProgressBar').style.width = '0%';
+            document.getElementById('balanceHint').classList.add('d-none');
+            document.getElementById('payFullBalanceBtn').style.display = 'none';
+            
             const modalStudentName = document.getElementById('modal_student_name');
             if (modalStudentName) {
                 modalStudentName.textContent = '— No student selected —';
+            }
+        });
+        
+        // Pay full balance button
+        payFullBalanceBtn.addEventListener('click', function() {
+            const balanceText = document.getElementById('outstandingBalance').textContent;
+            const balance = parseFloat(balanceText.replace('KES ', '')) || 0;
+            if (balance > 0) {
+                document.getElementById('amount').value = balance;
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Amount Set',
+                    text: 'Amount set to full balance: KES ' + balance.toFixed(2),
+                    timer: 1500,
+                    showConfirmButton: false
+                });
+            }
+        });
+        
+        // Term/Year change - re-fetch fee summary
+        document.getElementById('term').addEventListener('change', function() {
+            if (studentIdInput.value) {
+                fetchStudentFeeSummary(studentIdInput.value);
+            }
+        });
+        
+        document.getElementById('academic_year').addEventListener('change', function() {
+            if (studentIdInput.value) {
+                fetchStudentFeeSummary(studentIdInput.value);
             }
         });
         

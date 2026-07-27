@@ -581,13 +581,15 @@ class FeeController extends Controller
 
     /**
      * Calculate expected fees for a student (AJAX endpoint)
+     * Supports both query parameters and path parameters
      */
     public function calculateExpected(Request $request)
     {
         try {
-            $studentId = $request->input('student_id');
-            $term = $request->input('term');
-            $academicYear = $request->input('academic_year');
+            // Get parameters from either query or route
+            $studentId = $request->input('student_id') ?? $request->route('studentId');
+            $term = $request->input('term') ?? $request->route('term');
+            $academicYear = $request->input('academic_year') ?? $request->route('academicYear');
 
             if (!$studentId || !$term || !$academicYear) {
                 return response()->json([
@@ -644,13 +646,15 @@ class FeeController extends Controller
 
     /**
      * Get fee structures for a student (AJAX endpoint)
+     * Supports both query parameters and path parameters
      */
     public function getFeeStructures(Request $request)
     {
         try {
-            $studentId = $request->input('student_id');
-            $term = $request->input('term');
-            $academicYear = $request->input('academic_year');
+            // Get parameters from either query or route
+            $studentId = $request->input('student_id') ?? $request->route('studentId');
+            $term = $request->input('term') ?? $request->route('term');
+            $academicYear = $request->input('academic_year') ?? $request->route('academicYear');
 
             if (!$studentId || !$term || !$academicYear) {
                 return response()->json([
