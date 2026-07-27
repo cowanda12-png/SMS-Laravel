@@ -745,11 +745,7 @@
                         <span class="arrow" id="reportsArrow"><i class="fas fa-chevron-down"></i></span>
                     </button>
                     <ul class="sidebar-dropdown-menu" id="reportsDropdownMenu">
-                        <li>
-                            <a href="{{ route('reports.dashboard') }}" class="sidebar-link {{ request()->routeIs('reports.dashboard') ? 'active' : '' }}">
-                                <i class="fas fa-chart-pie"></i> Reports Dashboard
-                            </a>
-                        </li>
+                        
                         <li>
                             <a href="{{ route('reports.student-statement') }}" class="sidebar-link {{ request()->routeIs('reports.student-statement') ? 'active' : '' }}">
                                 <i class="fas fa-id-card"></i> Student Statement
