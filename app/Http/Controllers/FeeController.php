@@ -7,6 +7,7 @@ use App\Models\Students;
 use App\Models\FeeStructure;
 use App\Models\Classes;
 use App\Models\Grade;
+use App\Models\Payment;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Carbon\Carbon;
@@ -63,7 +64,7 @@ class FeeController extends Controller
             $query->whereDate('payment_date', '<=', $request->end_date);
         }
         
-        // Search by receipt number or student name - FIXED
+        // Search by receipt number or student name
         if ($request->filled('search')) {
             $search = $request->search;
             $query->where(function($q) use ($search) {
@@ -102,7 +103,7 @@ class FeeController extends Controller
         $terms = FeeStructure::distinct('term')->pluck('term')->filter()->values();
         $academicYears = FeeStructure::distinct('academic_year')->pluck('academic_year')->filter()->values();
         
-        // Get students for filter dropdown - FIXED
+        // Get students for filter dropdown
         $students = Students::orderBy('first_name')->orderBy('last_name')->get();
         
         // Summary statistics for dashboard integration
@@ -206,19 +207,24 @@ class FeeController extends Controller
      */
     private function calculateStudentTotalFees($student)
     {
-        // Get fee structures
-        $feeStructures = FeeStructure::where('status', 'active')
-            ->where(function($query) use ($student) {
-                $query->where('class_id', $student->class_id)
-                      ->orWhereNull('class_id');
-            })
-            ->where(function($query) use ($student) {
-                $query->where('grade_id', $student->grade_id)
-                      ->orWhereNull('grade_id');
-            })
-            ->get();
-        
-        return $feeStructures->sum('amount') ?? 0;
+        try {
+            // Get fee structures
+            $feeStructures = FeeStructure::where('status', 'active')
+                ->where(function($query) use ($student) {
+                    $query->where('class_id', $student->class_id)
+                          ->orWhereNull('class_id');
+                })
+                ->where(function($query) use ($student) {
+                    $query->where('grade_id', $student->grade_id)
+                          ->orWhereNull('grade_id');
+                })
+                ->get();
+            
+            return $feeStructures->sum('amount') ?? 0;
+        } catch (\Exception $e) {
+            Log::error('Calculate Student Total Fees Error: ' . $e->getMessage());
+            return 0;
+        }
     }
 
     /**
@@ -226,23 +232,28 @@ class FeeController extends Controller
      */
     private function calculateStudentTotalPaid($student)
     {
-        // First check fees table
-        $totalPaid = Fee::where('student_id', $student->id)
-            ->where('status', 'paid')
-            ->sum('amount_paid') ?? 0;
-        
-        // If no fees, check payments table if it exists
-        if ($totalPaid == 0 && Schema::hasTable('payments')) {
-            try {
-                $totalPaid = \App\Models\Payment::where('student_id', $student->id)
-                    ->where('status', 'paid')
-                    ->sum('amount') ?? 0;
-            } catch (\Exception $e) {
-                // Payments table might not exist or have different structure
+        try {
+            // First check fees table
+            $totalPaid = Fee::where('student_id', $student->id)
+                ->where('status', 'paid')
+                ->sum('amount_paid') ?? 0;
+            
+            // If no fees, check payments table if it exists
+            if ($totalPaid == 0 && Schema::hasTable('payments')) {
+                try {
+                    $totalPaid = Payment::where('student_id', $student->id)
+                        ->where('status', 'paid')
+                        ->sum('amount') ?? 0;
+                } catch (\Exception $e) {
+                    // Payments table might not exist or have different structure
+                }
             }
+            
+            return $totalPaid;
+        } catch (\Exception $e) {
+            Log::error('Calculate Student Total Paid Error: ' . $e->getMessage());
+            return 0;
         }
-        
-        return $totalPaid;
     }
 
     /**
@@ -256,15 +267,6 @@ class FeeController extends Controller
         
         if ($balance <= 0) {
             return 'Paid';
-        }
-        
-        // Check for overdue payments
-        $hasOverdue = Fee::where('student_id', $student->id ?? 0)
-            ->where('status', 'overdue')
-            ->exists();
-        
-        if ($hasOverdue) {
-            return 'Overdue';
         }
         
         if ($balance > 0 && $balance < $totalFees) {
@@ -688,7 +690,7 @@ class FeeController extends Controller
             }
 
             // Get fee structures for this student
-            $feeStructures = FeeStructure::active()
+            $feeStructures = FeeStructure::where('status', 'active')
                 ->where(function($query) use ($student) {
                     $query->where('class_id', $student->class_id)
                           ->orWhereNull('class_id');
@@ -801,7 +803,7 @@ class FeeController extends Controller
                 ], 404);
             }
 
-            $feeStructures = FeeStructure::active()
+            $feeStructures = FeeStructure::where('status', 'active')
                 ->where(function($query) use ($student) {
                     $query->where('class_id', $student->class_id)
                           ->orWhereNull('class_id');
@@ -858,6 +860,7 @@ class FeeController extends Controller
 
     /**
      * Search for students with their fee information (AJAX)
+     * This is the method called by the search in fee/create view
      */
     public function searchStudent(Request $request)
     {
@@ -872,7 +875,6 @@ class FeeController extends Controller
                 ->where(function($query) use ($search) {
                     $query->where('first_name', 'LIKE', "%{$search}%")
                           ->orWhere('last_name', 'LIKE', "%{$search}%")
-                          ->orWhere(DB::raw("CONCAT(first_name, ' ', last_name)"), 'LIKE', "%{$search}%")
                           ->orWhere('admission_number', 'LIKE', "%{$search}%")
                           ->orWhere('email', 'LIKE', "%{$search}%")
                           ->orWhere('phone', 'LIKE', "%{$search}%");
@@ -892,8 +894,8 @@ class FeeController extends Controller
                     'id' => $student->id,
                     'first_name' => $student->first_name ?? '',
                     'last_name' => $student->last_name ?? '',
-                    'full_name' => $student->name,
-                    'name' => $student->name,
+                    'full_name' => trim(($student->first_name ?? '') . ' ' . ($student->last_name ?? '')),
+                    'name' => trim(($student->first_name ?? '') . ' ' . ($student->last_name ?? '')),
                     'admission_number' => $student->admission_number ?? 'N/A',
                     'phone' => $student->phone ?? '',
                     'email' => $student->email ?? '',
@@ -919,7 +921,10 @@ class FeeController extends Controller
             
         } catch (\Exception $e) {
             Log::error('Search Student Error: ' . $e->getMessage());
-            return response()->json([]);
+            Log::error('Search Student Trace: ' . $e->getTraceAsString());
+            return response()->json([
+                'error' => 'Failed to search students: ' . $e->getMessage()
+            ], 500);
         }
     }
 
