@@ -4,6 +4,7 @@ use App\Http\Controllers\CourseController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ExamController;
 use App\Http\Controllers\FeeController;
+use App\Http\Controllers\FeeStructureController;
 use App\Http\Controllers\MpesaCallbackController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\ProfileController;
@@ -63,6 +64,18 @@ Route::middleware('auth')->group(function () {
     Route::post('/fees/bulk-delete', [FeeController::class, 'bulkDelete'])->name('fees.bulk-delete');
     Route::get('/fees/export', [FeeController::class, 'export'])->name('fees.export');
     Route::get('/fees/receipt/{id}', [FeeController::class, 'showReceipt'])->name('fees.receipt');
+
+    // Fee Structure Routes
+Route::resource('fee-structures', FeeStructureController::class);
+
+// Update existing fee routes
+Route::get('/fees/calculate-expected/{studentId}/{term}/{academicYear}', [FeeController::class, 'calculateExpected'])
+    ->name('fees.calculate-expected');
+
+Route::get('/fees/get-fee-structures/{studentId}/{term}/{academicYear}', [FeeController::class, 'getFeeStructures'])
+    ->name('fees.get-fee-structures');
+
+Route::resource('fees', FeeController::class);
 });
 
 // ==================== COURSE EXTRA ROUTES ====================

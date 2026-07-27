@@ -37,6 +37,18 @@ class Students extends Model
         return $this->belongsTo(Course::class, 'course_id', 'id');
     }
 
+    // Relationship: Student belongs to one Class (ADD THIS)
+    public function class()
+    {
+        return $this->belongsTo(Classes::class, 'class_id', 'id');
+    }
+
+    // Relationship: Student belongs to one Grade (ADD THIS)
+    public function grade()
+    {
+        return $this->belongsTo(Grade::class, 'grade_id', 'id');
+    }
+
     // Relationship: Student has many Fee payments
     public function fees()
     {

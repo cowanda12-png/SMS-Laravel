@@ -728,10 +728,31 @@
                         <i class="fas fa-book"></i> Courses
                     </a>
                 </li>
+                
+                <!-- Fees Dropdown Section -->
                 <li>
-                    <a href="{{ route('fees.index') }}" class="sidebar-link {{ request()->routeIs('fees.*') ? 'active' : '' }}">
-                        <i class="fas fa-money-bill-wave"></i> Fees
-                    </a>
+                    <button class="sidebar-dropdown-toggle" id="feesDropdownToggle" onclick="toggleFeesDropdown()">
+                        <i class="fas fa-coins"></i> 
+                        <span>Fees Management</span>
+                        <span class="arrow" id="feesArrow"><i class="fas fa-chevron-down"></i></span>
+                    </button>
+                    <ul class="sidebar-dropdown-menu" id="feesDropdownMenu">
+                        <li>
+                            <a href="{{ route('fee-structures.index') }}" class="sidebar-link {{ request()->routeIs('fee-structures.*') ? 'active' : '' }}">
+                                <i class="fas fa-file-invoice-dollar"></i> Fee Structure
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{{ route('fees.index') }}" class="sidebar-link {{ request()->routeIs('fees.index') ? 'active' : '' }}">
+                                <i class="fas fa-receipt"></i> Fee Records
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{{ route('fees.create') }}" class="sidebar-link {{ request()->routeIs('fees.create') ? 'active' : '' }}">
+                                <i class="fas fa-plus-circle"></i> Record Payment
+                            </a>
+                        </li>
+                    </ul>
                 </li>
                 
                 <!-- Sidebar Divider -->
@@ -745,7 +766,6 @@
                         <span class="arrow" id="reportsArrow"><i class="fas fa-chevron-down"></i></span>
                     </button>
                     <ul class="sidebar-dropdown-menu" id="reportsDropdownMenu">
-                        
                         <li>
                             <a href="{{ route('reports.student-statement') }}" class="sidebar-link {{ request()->routeIs('reports.student-statement') ? 'active' : '' }}">
                                 <i class="fas fa-id-card"></i> Student Statement
@@ -841,6 +861,16 @@
             document.body.style.overflow = '';
         }
         
+        // Toggle Fees Dropdown
+        function toggleFeesDropdown() {
+            const menu = document.getElementById('feesDropdownMenu');
+            const arrow = document.getElementById('feesArrow');
+            const toggle = document.getElementById('feesDropdownToggle');
+            
+            menu.classList.toggle('open');
+            arrow.classList.toggle('open');
+        }
+        
         // Toggle Reports Dropdown
         function toggleReportsDropdown() {
             const menu = document.getElementById('reportsDropdownMenu');
@@ -849,8 +879,6 @@
             
             menu.classList.toggle('open');
             arrow.classList.toggle('open');
-            
-            // Close other dropdowns if any (for future expansion)
         }
         
         // Close sidebar when clicking on a link (mobile)
@@ -921,8 +949,24 @@
             }
         });
         
-        // Auto-expand reports dropdown if a reports page is active
+        // Auto-expand fees dropdown if a fees page is active
         document.addEventListener('DOMContentLoaded', function() {
+            const feesLinks = document.querySelectorAll('#feesDropdownMenu .sidebar-link');
+            let hasActiveFees = false;
+            feesLinks.forEach(function(link) {
+                if (link.classList.contains('active')) {
+                    hasActiveFees = true;
+                }
+            });
+            
+            if (hasActiveFees) {
+                const menu = document.getElementById('feesDropdownMenu');
+                const arrow = document.getElementById('feesArrow');
+                menu.classList.add('open');
+                arrow.classList.add('open');
+            }
+            
+            // Auto-expand reports dropdown if a reports page is active
             const reportsLinks = document.querySelectorAll('#reportsDropdownMenu .sidebar-link');
             let hasActiveReports = false;
             reportsLinks.forEach(function(link) {

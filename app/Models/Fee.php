@@ -18,6 +18,7 @@ class Fee extends Model
      */
     protected $fillable = [
         'student_id',
+        'fee_structure_id',
         'amount',
         'payment_date',
         'due_date',
@@ -37,6 +38,11 @@ class Fee extends Model
         'account_reference',
         'mpesa_result_desc',
         'completed_at',
+        'class_id',
+        'grade_id',
+        'amount_paid',
+        'balance',
+        'notes',
     ];
 
     /**
@@ -46,6 +52,8 @@ class Fee extends Model
      */
     protected $casts = [
         'amount' => 'decimal:2',
+        'amount_paid' => 'decimal:2',
+        'balance' => 'decimal:2',
         'payment_date' => 'date',
         'due_date' => 'date',
         'created_at' => 'datetime',
@@ -79,6 +87,30 @@ class Fee extends Model
     }
 
     /**
+     * Get the fee structure associated with this fee.
+     */
+    public function feeStructure()
+    {
+        return $this->belongsTo(FeeStructure::class, 'fee_structure_id');
+    }
+
+    /**
+     * Get the class associated with this fee.
+     */
+    public function class()
+    {
+        return $this->belongsTo(Classes::class, 'class_id');
+    }
+
+    /**
+     * Get the grade associated with this fee.
+     */
+    public function grade()
+    {
+        return $this->belongsTo(Grade::class, 'grade_id');
+    }
+
+    /**
      * Get the M-Pesa transaction associated with the fee.
      */
     public function mpesaTransaction()
@@ -105,70 +137,61 @@ class Fee extends Model
     // ==================== ACCESSORS ====================
 
     /**
-     * Get student's name - FIXED to use 'name' column
+     * Get student's full name
      */
     public function getStudentNameAttribute()
     {
         if ($this->relationLoaded('student') && $this->student) {
-            return $this->student->name ?? 'Unknown Student';
+            return ($this->student->first_name ?? '') . ' ' . ($this->student->last_name ?? '');
         }
         
         try {
             $student = Students::find($this->student_id);
-            return $student->name ?? 'Unknown Student';
+            if ($student) {
+                return ($student->first_name ?? '') . ' ' . ($student->last_name ?? '');
+            }
+            return 'Unknown Student';
         } catch (\Exception $e) {
             return 'Student #' . $this->student_id;
         }
     }
 
     /**
-     * Get student's first name - FIXED to use 'name' column
+     * Get student's first name
      */
     public function getStudentFirstNameAttribute()
     {
         if ($this->relationLoaded('student') && $this->student) {
-            $name = $this->student->name ?? 'Unknown';
-            $parts = explode(' ', $name);
-            return $parts[0] ?? 'Unknown';
+            return $this->student->first_name ?? 'Unknown';
         }
         
         try {
             $student = Students::find($this->student_id);
-            if ($student) {
-                $parts = explode(' ', $student->name ?? 'Unknown');
-                return $parts[0] ?? 'Unknown';
-            }
-            return 'Unknown';
+            return $student->first_name ?? 'Unknown';
         } catch (\Exception $e) {
             return 'Unknown';
         }
     }
 
     /**
-     * Get student's last name - FIXED to use 'name' column
+     * Get student's last name
      */
     public function getStudentLastNameAttribute()
     {
         if ($this->relationLoaded('student') && $this->student) {
-            $name = $this->student->name ?? 'Unknown';
-            $parts = explode(' ', $name);
-            return count($parts) > 1 ? end($parts) : $parts[0] ?? 'Unknown';
+            return $this->student->last_name ?? 'Unknown';
         }
         
         try {
             $student = Students::find($this->student_id);
-            if ($student) {
-                $parts = explode(' ', $student->name ?? 'Unknown');
-                return count($parts) > 1 ? end($parts) : $parts[0] ?? 'Unknown';
-            }
-            return 'Unknown';
+            return $student->last_name ?? 'Unknown';
         } catch (\Exception $e) {
             return 'Unknown';
         }
     }
 
     /**
-     * Get student's course name - FIXED
+     * Get student's course name
      */
     public function getStudentCourseAttribute()
     {
@@ -193,7 +216,7 @@ class Fee extends Model
     }
 
     /**
-     * Get student's admission number - FIXED
+     * Get student's admission number
      */
     public function getStudentAdmissionAttribute()
     {
@@ -210,7 +233,7 @@ class Fee extends Model
     }
 
     /**
-     * Get student's phone number - FIXED
+     * Get student's phone number
      */
     public function getStudentPhoneAttribute()
     {
@@ -227,7 +250,7 @@ class Fee extends Model
     }
 
     /**
-     * Get student's email - FIXED
+     * Get student's email
      */
     public function getStudentEmailAttribute()
     {
@@ -244,7 +267,7 @@ class Fee extends Model
     }
 
     /**
-     * Get complete student details as array - FIXED
+     * Get complete student details as array
      */
     public function getStudentDetailsAttribute()
     {
@@ -282,6 +305,22 @@ class Fee extends Model
     }
 
     /**
+     * Get formatted amount paid with currency.
+     */
+    public function getFormattedAmountPaidAttribute()
+    {
+        return 'KES ' . number_format($this->amount_paid ?? 0, 2);
+    }
+
+    /**
+     * Get formatted balance with currency.
+     */
+    public function getFormattedBalanceAttribute()
+    {
+        return 'KES ' . number_format($this->balance ?? 0, 2);
+    }
+
+    /**
      * Get status badge data.
      */
     public function getStatusBadgeAttribute()
@@ -290,12 +329,14 @@ class Fee extends Model
             'pending' => 'warning',
             'paid' => 'success',
             'overdue' => 'danger',
+            'partial' => 'info',
         ];
 
         $icons = [
             'pending' => 'fa-clock',
             'paid' => 'fa-check-circle',
             'overdue' => 'fa-exclamation-circle',
+            'partial' => 'fa-half-alt',
         ];
 
         return [
@@ -310,7 +351,7 @@ class Fee extends Model
      */
     public function getIsOverdueAttribute()
     {
-        if ($this->status === 'pending' && $this->due_date && $this->due_date->isPast()) {
+        if (in_array($this->status, ['pending', 'partial']) && $this->due_date && $this->due_date->isPast()) {
             return true;
         }
         return false;
@@ -355,7 +396,7 @@ class Fee extends Model
     }
 
     /**
-     * Get payment summary - FIXED
+     * Get payment summary
      */
     public function getSummaryAttribute()
     {
@@ -365,6 +406,8 @@ class Fee extends Model
                 'student' => $this->student_name,
                 'student_id' => $this->student_id,
                 'amount' => $this->formatted_amount,
+                'amount_paid' => $this->formatted_amount_paid,
+                'balance' => $this->formatted_balance,
                 'status' => $this->status,
                 'status_badge' => $this->status_badge,
                 'date' => $this->formatted_payment_date,
@@ -372,6 +415,9 @@ class Fee extends Model
                 'is_overdue' => $this->is_overdue,
                 'term' => $this->term,
                 'academic_year' => $this->academic_year,
+                'fee_type' => $this->fee_type,
+                'payment_method' => $this->payment_method,
+                'receipt_no' => $this->receipt_no,
             ];
         } catch (\Exception $e) {
             return [
@@ -379,6 +425,8 @@ class Fee extends Model
                 'student' => 'Unknown Student',
                 'student_id' => $this->student_id,
                 'amount' => 'KES ' . number_format($this->amount, 2),
+                'amount_paid' => 'KES ' . number_format($this->amount_paid ?? 0, 2),
+                'balance' => 'KES ' . number_format($this->balance ?? 0, 2),
                 'status' => $this->status ?? 'pending',
                 'status_badge' => ['color' => 'secondary', 'icon' => 'fa-circle', 'label' => ucfirst($this->status ?? 'pending')],
                 'date' => $this->payment_date ? $this->payment_date->format('d M Y') : 'N/A',
@@ -386,6 +434,9 @@ class Fee extends Model
                 'is_overdue' => false,
                 'term' => $this->term ?? 'N/A',
                 'academic_year' => $this->academic_year ?? 'N/A',
+                'fee_type' => $this->fee_type ?? 'N/A',
+                'payment_method' => $this->payment_method ?? 'N/A',
+                'receipt_no' => $this->receipt_no ?? 'N/A',
             ];
         }
     }
@@ -412,6 +463,47 @@ class Fee extends Model
     public function getFormattedPaidDateAttribute()
     {
         return $this->paid_at ? $this->paid_at->format('d M Y H:i') : 'N/A';
+    }
+
+    /**
+     * Get fee structure details if linked.
+     */
+    public function getFeeStructureDetailsAttribute()
+    {
+        if (!$this->fee_structure_id) {
+            return null;
+        }
+
+        if ($this->relationLoaded('feeStructure') && $this->feeStructure) {
+            return $this->feeStructure;
+        }
+
+        try {
+            return FeeStructure::find($this->fee_structure_id);
+        } catch (\Exception $e) {
+            return null;
+        }
+    }
+
+    /**
+     * Check if fee is fully paid.
+     */
+    public function getIsFullyPaidAttribute()
+    {
+        return ($this->balance ?? 0) <= 0;
+    }
+
+    /**
+     * Get payment completion percentage.
+     */
+    public function getPaymentPercentageAttribute()
+    {
+        if ($this->amount <= 0) {
+            return 0;
+        }
+        
+        $paid = $this->amount_paid ?? 0;
+        return min(100, round(($paid / $this->amount) * 100, 2));
     }
 
     // ==================== SCOPES ====================
@@ -466,6 +558,14 @@ class Fee extends Model
     }
 
     /**
+     * Scope: Partial payments.
+     */
+    public function scopePartial($query)
+    {
+        return $query->where('status', 'partial');
+    }
+
+    /**
      * Scope: By status.
      */
     public function scopeByStatus($query, $status)
@@ -474,15 +574,64 @@ class Fee extends Model
     }
 
     /**
-     * Scope: Search by student name.
+     * Scope: By term.
+     */
+    public function scopeByTerm($query, $term)
+    {
+        return $query->where('term', $term);
+    }
+
+    /**
+     * Scope: By academic year.
+     */
+    public function scopeByAcademicYear($query, $year)
+    {
+        return $query->where('academic_year', $year);
+    }
+
+    /**
+     * Scope: By fee type.
+     */
+    public function scopeByFeeType($query, $feeType)
+    {
+        return $query->where('fee_type', $feeType);
+    }
+
+    /**
+     * Scope: By student.
+     */
+    public function scopeByStudent($query, $studentId)
+    {
+        return $query->where('student_id', $studentId);
+    }
+
+    /**
+     * Scope: By fee structure.
+     */
+    public function scopeByFeeStructure($query, $feeStructureId)
+    {
+        return $query->where('fee_structure_id', $feeStructureId);
+    }
+
+    /**
+     * Scope: With fee structure linked.
+     */
+    public function scopeWithFeeStructure($query)
+    {
+        return $query->with('feeStructure');
+    }
+
+    /**
+     * Scope: Search by student name - FIXED to use first_name and last_name
      */
     public function scopeSearch($query, $search)
     {
         return $query->whereHas('student', function($q) use ($search) {
-            $q->where('name', 'LIKE', "%{$search}%")
+            $q->where('first_name', 'LIKE', "%{$search}%")
+              ->orWhere('last_name', 'LIKE', "%{$search}%")
               ->orWhere('email', 'LIKE', "%{$search}%")
               ->orWhere('admission_number', 'LIKE', "%{$search}%");
-        });
+        })->orWhere('receipt_no', 'LIKE', "%{$search}%");
     }
 
     /**
@@ -499,6 +648,16 @@ class Fee extends Model
     public function scopeWithStudentAndCourse($query)
     {
         return $query->with(['student', 'student.course']);
+    }
+
+    /**
+     * Scope: Active fee structures only.
+     */
+    public function scopeWithActiveFeeStructure($query)
+    {
+        return $query->whereHas('feeStructure', function($q) {
+            $q->where('status', 'active');
+        });
     }
 
     // ==================== HELPER METHODS ====================
@@ -528,6 +687,14 @@ class Fee extends Model
     }
 
     /**
+     * Check if fee is partial.
+     */
+    public function isPartial()
+    {
+        return $this->status === 'partial';
+    }
+
+    /**
      * Check if fee has an M-Pesa transaction.
      */
     public function hasMpesaTransaction()
@@ -544,6 +711,14 @@ class Fee extends Model
     }
 
     /**
+     * Check if linked to fee structure.
+     */
+    public function hasFeeStructure(): bool
+    {
+        return !is_null($this->fee_structure_id);
+    }
+
+    /**
      * Mark fee as paid.
      */
     public function markAsPaid()
@@ -551,6 +726,7 @@ class Fee extends Model
         $this->update([
             'status' => 'paid',
             'paid_at' => now(),
+            'balance' => 0,
         ]);
     }
 
@@ -572,6 +748,42 @@ class Fee extends Model
         $this->update([
             'status' => 'pending',
         ]);
+    }
+
+    /**
+     * Mark fee as partial.
+     */
+    public function markAsPartial()
+    {
+        $this->update([
+            'status' => 'partial',
+        ]);
+    }
+
+    /**
+     * Update balance and status based on payments.
+     */
+    public function updateBalanceAndStatus()
+    {
+        $balance = $this->amount - ($this->amount_paid ?? 0);
+        $this->balance = max(0, $balance);
+
+        if ($balance <= 0) {
+            $this->status = 'paid';
+            $this->paid_at = now();
+        } elseif ($this->amount_paid > 0 && $balance > 0) {
+            $this->status = 'partial';
+        } else {
+            $this->status = 'pending';
+        }
+
+        // Check overdue
+        if (in_array($this->status, ['pending', 'partial']) && $this->due_date && $this->due_date->isPast()) {
+            $this->status = 'overdue';
+        }
+
+        $this->save();
+        return $this;
     }
 
     /**
@@ -619,7 +831,7 @@ class Fee extends Model
     }
 
     /**
-     * Get student details for the receipt - FIXED
+     * Get student details for the receipt - FIXED to use first_name and last_name
      */
     public function getStudentDetailsForReceiptAttribute()
     {
@@ -632,7 +844,9 @@ class Fee extends Model
             
             if ($student) {
                 return [
-                    'name' => $student->name ?? 'Unknown Student',
+                    'name' => ($student->first_name ?? '') . ' ' . ($student->last_name ?? 'Unknown'),
+                    'first_name' => $student->first_name ?? 'Unknown',
+                    'last_name' => $student->last_name ?? 'Unknown',
                     'admission_number' => $student->admission_number ?? 'N/A',
                     'course' => $student->course->course_name ?? $student->course->name ?? 'Not Assigned',
                     'phone' => $student->phone ?? '',
@@ -643,6 +857,8 @@ class Fee extends Model
             
             return [
                 'name' => 'Student Not Found',
+                'first_name' => 'Unknown',
+                'last_name' => 'Unknown',
                 'admission_number' => 'N/A',
                 'course' => 'Not Assigned',
                 'phone' => '',
@@ -652,6 +868,8 @@ class Fee extends Model
         } catch (\Exception $e) {
             return [
                 'name' => 'Student Not Found',
+                'first_name' => 'Unknown',
+                'last_name' => 'Unknown',
                 'admission_number' => 'N/A',
                 'course' => 'Not Assigned',
                 'phone' => '',
@@ -659,6 +877,119 @@ class Fee extends Model
                 'id' => $this->student_id,
             ];
         }
+    }
+
+    /**
+     * Calculate expected fees for a student based on class, grade, term, and year.
+     */
+    public static function calculateExpectedFees($studentId, $term, $academicYear)
+    {
+        $student = Students::with(['class', 'grade'])->find($studentId);
+        if (!$student) {
+            return 0;
+        }
+
+        return FeeStructure::active()
+            ->where('class_id', $student->class_id)
+            ->where('grade_id', $student->grade_id)
+            ->where('term', $term)
+            ->where('academic_year', $academicYear)
+            ->sum('amount');
+    }
+
+    /**
+     * Get all expected fee structures for a student.
+     */
+    public static function getExpectedFeeStructures($studentId, $term, $academicYear)
+    {
+        $student = Students::with(['class', 'grade'])->find($studentId);
+        if (!$student) {
+            return collect();
+        }
+
+        return FeeStructure::active()
+            ->where('class_id', $student->class_id)
+            ->where('grade_id', $student->grade_id)
+            ->where('term', $term)
+            ->where('academic_year', $academicYear)
+            ->get();
+    }
+
+    /**
+     * Get all fees for a student grouped by fee structure.
+     */
+    public static function getStudentFeesByStructure($studentId, $term, $academicYear)
+    {
+        $feeStructures = self::getExpectedFeeStructures($studentId, $term, $academicYear);
+        
+        $result = [];
+        foreach ($feeStructures as $structure) {
+            $paid = self::where('student_id', $studentId)
+                ->where('fee_structure_id', $structure->id)
+                ->where('status', 'paid')
+                ->sum('amount_paid');
+            
+            $pending = self::where('student_id', $studentId)
+                ->where('fee_structure_id', $structure->id)
+                ->whereIn('status', ['pending', 'partial'])
+                ->sum('amount');
+            
+            $result[] = [
+                'structure' => $structure,
+                'expected' => $structure->amount,
+                'paid' => $paid,
+                'pending' => $pending,
+                'balance' => $structure->amount - $paid,
+                'is_fully_paid' => ($structure->amount - $paid) <= 0,
+            ];
+        }
+        
+        return $result;
+    }
+
+    /**
+     * Check if all expected fees for a student are paid.
+     */
+    public static function areAllFeesPaid($studentId, $term, $academicYear)
+    {
+        $expectedTotal = self::calculateExpectedFees($studentId, $term, $academicYear);
+        $totalPaid = self::where('student_id', $studentId)
+            ->where('term', $term)
+            ->where('academic_year', $academicYear)
+            ->where('status', 'paid')
+            ->sum('amount_paid');
+
+        return $totalPaid >= $expectedTotal;
+    }
+
+    /**
+     * Get payment summary for a student.
+     */
+    public static function getStudentPaymentSummary($studentId, $term, $academicYear)
+    {
+        $expected = self::calculateExpectedFees($studentId, $term, $academicYear);
+        $paid = self::where('student_id', $studentId)
+            ->where('term', $term)
+            ->where('academic_year', $academicYear)
+            ->where('status', 'paid')
+            ->sum('amount_paid');
+        
+        $pending = self::where('student_id', $studentId)
+            ->where('term', $term)
+            ->where('academic_year', $academicYear)
+            ->whereIn('status', ['pending', 'partial'])
+            ->sum('amount');
+        
+        $balance = $expected - $paid;
+
+        return [
+            'expected' => $expected,
+            'paid' => $paid,
+            'pending' => $pending,
+            'balance' => $balance,
+            'all_paid' => $balance <= 0,
+            'payment_percentage' => $expected > 0 ? round(($paid / $expected) * 100, 2) : 0,
+        ];
     }
 
     // ==================== EVENTS ====================
@@ -683,12 +1014,64 @@ class Fee extends Model
             if (empty($fee->receipt_no)) {
                 $fee->receipt_no = 'RCP-' . date('Ymd') . '-' . str_pad(rand(1000, 9999), 4, '0', STR_PAD_LEFT);
             }
+
+            // Calculate balance
+            if (isset($fee->amount) && isset($fee->amount_paid)) {
+                $fee->balance = $fee->amount - $fee->amount_paid;
+            } elseif (isset($fee->amount)) {
+                $fee->balance = $fee->amount;
+            }
+
+            // Auto-determine status based on balance
+            if (isset($fee->balance)) {
+                if ($fee->balance <= 0) {
+                    $fee->status = 'paid';
+                } elseif ($fee->amount_paid > 0 && $fee->balance > 0) {
+                    $fee->status = 'partial';
+                }
+            }
+
+            // Set class and grade from student if not provided
+            if (empty($fee->class_id) || empty($fee->grade_id)) {
+                try {
+                    $student = Students::find($fee->student_id);
+                    if ($student) {
+                        if (empty($fee->class_id)) {
+                            $fee->class_id = $student->class_id;
+                        }
+                        if (empty($fee->grade_id)) {
+                            $fee->grade_id = $student->grade_id;
+                        }
+                    }
+                } catch (\Exception $e) {
+                    // Continue without class/grade
+                }
+            }
         });
 
         static::updating(function ($fee) {
-            // Auto-set paid_at the moment status transitions to 'paid'
+            // Auto-set paid_at when status transitions to 'paid'
             if ($fee->isDirty('status') && $fee->status === 'paid' && empty($fee->paid_at)) {
                 $fee->paid_at = now();
+            }
+
+            // Recalculate balance if amount or amount_paid changes
+            if ($fee->isDirty('amount') || $fee->isDirty('amount_paid')) {
+                $fee->balance = ($fee->amount ?? 0) - ($fee->amount_paid ?? 0);
+                
+                // Update status based on balance
+                if ($fee->balance <= 0) {
+                    $fee->status = 'paid';
+                } elseif ($fee->amount_paid > 0 && $fee->balance > 0) {
+                    $fee->status = 'partial';
+                } else {
+                    $fee->status = 'pending';
+                }
+            }
+
+            // Check overdue status
+            if (in_array($fee->status, ['pending', 'partial']) && $fee->due_date && $fee->due_date->isPast()) {
+                $fee->status = 'overdue';
             }
         });
 

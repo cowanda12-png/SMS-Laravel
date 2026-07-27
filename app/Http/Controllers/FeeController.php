@@ -4,6 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\Fee;
 use App\Models\Students;
+use App\Models\FeeStructure;
+use App\Models\Classes;
+use App\Models\Grade;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Carbon\Carbon;
@@ -20,7 +23,7 @@ class FeeController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Fee::with('student.course');
+        $query = Fee::with(['student.course', 'feeStructure', 'class', 'grade']);
         
         // Filter by student
         if ($request->filled('student_id')) {
@@ -42,6 +45,16 @@ class FeeController extends Controller
             $query->where('status', $request->status);
         }
         
+        // Filter by term
+        if ($request->filled('term')) {
+            $query->where('term', $request->term);
+        }
+        
+        // Filter by academic year
+        if ($request->filled('academic_year')) {
+            $query->where('academic_year', $request->academic_year);
+        }
+        
         // Filter by date range
         if ($request->filled('start_date')) {
             $query->whereDate('payment_date', '>=', $request->start_date);
@@ -50,7 +63,7 @@ class FeeController extends Controller
             $query->whereDate('payment_date', '<=', $request->end_date);
         }
         
-        // Search by receipt number or student name
+        // Search by receipt number or student name - FIXED
         if ($request->filled('search')) {
             $search = $request->search;
             $query->where(function($q) use ($search) {
@@ -67,27 +80,29 @@ class FeeController extends Controller
         // Get paginated results
         $fees = $query->orderBy('payment_date', 'desc')
                       ->orderBy('created_at', 'desc')
-                      ->paginate(10)
+                      ->paginate(15)
                       ->withQueryString();
         
         // Calculate statistics
-        $totalFees = Fee::sum('amount') ?? 0;
-        $todayFees = Fee::whereDate('payment_date', Carbon::today())->sum('amount') ?? 0;
+        $totalFees = Fee::sum('amount_paid') ?? 0;
+        $todayFees = Fee::whereDate('payment_date', Carbon::today())->sum('amount_paid') ?? 0;
         $pendingFees = Fee::where('status', 'pending')->sum('amount') ?? 0;
         $overdueFees = Fee::where('status', 'overdue')->sum('amount') ?? 0;
+        $partialFees = Fee::where('status', 'partial')->sum('amount') ?? 0;
         
         // Get counts
         $pendingCount = Fee::where('status', 'pending')->count() ?? 0;
         $overdueCount = Fee::where('status', 'overdue')->count() ?? 0;
+        $partialCount = Fee::where('status', 'partial')->count() ?? 0;
         
         // Get distinct values for filters
         $paymentMethods = Fee::distinct()->whereNotNull('payment_method')->pluck('payment_method')->filter()->values();
-        $feeTypes = Fee::distinct()->whereNotNull('fee_type')->pluck('fee_type')->filter()->values();
-        $statuses = ['paid', 'pending', 'overdue'];
-        $terms = Fee::distinct()->whereNotNull('term')->pluck('term')->filter()->values();
-        $academicYears = Fee::distinct()->whereNotNull('academic_year')->pluck('academic_year')->filter()->values();
+        $feeTypes = FeeStructure::distinct('fee_type')->pluck('fee_type')->filter()->values();
+        $statuses = ['paid', 'pending', 'overdue', 'partial'];
+        $terms = FeeStructure::distinct('term')->pluck('term')->filter()->values();
+        $academicYears = FeeStructure::distinct('academic_year')->pluck('academic_year')->filter()->values();
         
-        // Get students for filter dropdown
+        // Get students for filter dropdown - FIXED
         $students = Students::orderBy('first_name')->orderBy('last_name')->get();
         
         // Summary statistics for dashboard integration
@@ -96,8 +111,9 @@ class FeeController extends Controller
             'today_collected' => $todayFees,
             'pending_amount' => $pendingFees,
             'overdue_amount' => $overdueFees,
+            'partial_amount' => $partialFees,
             'total_transactions' => Fee::count(),
-            'collection_rate' => $totalFees > 0 ? round(($totalFees - $pendingFees) / $totalFees * 100, 1) : 0,
+            'collection_rate' => $totalFees > 0 ? round(($totalFees - $pendingFees - $overdueFees) / ($totalFees + $pendingFees + $overdueFees) * 100, 1) : 0,
         ];
         
         // Monthly chart data - Database agnostic
@@ -106,7 +122,7 @@ class FeeController extends Controller
             $driver = DB::connection()->getDriverName();
             
             if ($driver === 'pgsql') {
-                $monthlyData = Fee::selectRaw("TO_CHAR(payment_date, 'YYYY-MM') as month, SUM(amount) as total")
+                $monthlyData = Fee::selectRaw("TO_CHAR(payment_date, 'YYYY-MM') as month, SUM(amount_paid) as total")
                                   ->whereNotNull('payment_date')
                                   ->whereYear('payment_date', Carbon::now()->year)
                                   ->groupBy('month')
@@ -114,7 +130,7 @@ class FeeController extends Controller
                                   ->get();
             } else {
                 // MySQL, SQLite, etc.
-                $monthlyData = Fee::selectRaw("DATE_FORMAT(payment_date, '%Y-%m') as month, SUM(amount) as total")
+                $monthlyData = Fee::selectRaw("DATE_FORMAT(payment_date, '%Y-%m') as month, SUM(amount_paid) as total")
                                   ->whereNotNull('payment_date')
                                   ->whereYear('payment_date', Carbon::now()->year)
                                   ->groupBy('month')
@@ -129,11 +145,15 @@ class FeeController extends Controller
             'todayFees', 
             'pendingFees',
             'overdueFees',
+            'partialFees',
             'pendingCount',
             'overdueCount',
+            'partialCount',
             'paymentMethods', 
             'feeTypes',
             'statuses',
+            'terms',
+            'academicYears',
             'students',
             'summary',
             'monthlyData'
@@ -145,16 +165,32 @@ class FeeController extends Controller
      */
     public function create()
     {
-        $students = Students::with('course')
+        $students = Students::with(['class', 'grade', 'course'])
                             ->orderBy('first_name')
                             ->orderBy('last_name')
                             ->get();
         
         $paymentMethods = ['Cash', 'Bank Transfer', 'Cheque', 'M-Pesa', 'Credit Card', 'Other'];
-        $feeTypes = ['Tuition', 'Registration', 'Examination', 'Library', 'Sports', 'Laboratory', 'Other'];
-        $statuses = ['pending', 'paid', 'overdue'];
+        $feeTypes = FeeStructure::distinct('fee_type')->pluck('fee_type')->filter()->values();
+        if ($feeTypes->isEmpty()) {
+            $feeTypes = ['Tuition', 'Registration', 'Examination', 'Library', 'Sports', 'Laboratory', 'Other'];
+        }
+        $statuses = ['pending', 'paid', 'overdue', 'partial'];
+        $terms = ['Term 1', 'Term 2', 'Term 3'];
+        $academicYears = range(date('Y') - 1, date('Y') + 1);
+        $classes = Classes::all();
+        $grades = Grade::all();
         
-        return view('fees.create', compact('students', 'paymentMethods', 'feeTypes', 'statuses'));
+        return view('fees.create', compact(
+            'students', 
+            'paymentMethods', 
+            'feeTypes', 
+            'statuses',
+            'terms',
+            'academicYears',
+            'classes',
+            'grades'
+        ));
     }
 
     /**
@@ -162,16 +198,18 @@ class FeeController extends Controller
      */
     public function store(Request $request)
     {
-        // 🔍 Debug: log exactly what was received before validation,
-        // to catch any invisible whitespace/encoding issues in payment_method.
+        // 🔍 Debug: log exactly what was received before validation
         Log::info('📝 Fee store() request received:', [
             'payment_method_raw' => $request->input('payment_method'),
             'payment_method_length' => strlen((string) $request->input('payment_method')),
-            'payment_method_bytes' => bin2hex((string) $request->input('payment_method')),
             'status' => $request->input('status'),
+            'student_id' => $request->input('student_id'),
+            'amount' => $request->input('amount'),
+            'amount_paid' => $request->input('amount_paid'),
+            'fee_structure_id' => $request->input('fee_structure_id'),
         ]);
 
-        // Defensive trim in case of stray whitespace/newlines from the hidden field
+        // Defensive trim
         if ($request->has('payment_method')) {
             $request->merge([
                 'payment_method' => trim((string) $request->input('payment_method')),
@@ -180,20 +218,36 @@ class FeeController extends Controller
 
         $validated = $request->validate([
             'student_id' => 'required|exists:students,id',
+            'fee_structure_id' => 'nullable|exists:fee_structures,id',
             'amount' => 'required|numeric|min:0.01|max:999999.99',
+            'amount_paid' => 'nullable|numeric|min:0|max:amount',
             'payment_method' => 'required|string|in:Cash,Bank Transfer,Cheque,M-Pesa,Credit Card,Other',
             'receipt_no' => 'nullable|string|max:255|unique:fees,receipt_no',
             'payment_date' => 'required|date|before_or_equal:today',
-            'fee_type' => 'nullable|string|in:Tuition,Registration,Examination,Library,Sports,Laboratory,Other',
+            'fee_type' => 'required|string',
             'description' => 'nullable|string|max:500',
-            'status' => 'required|string|in:pending,paid,overdue',
+            'status' => 'nullable|string|in:pending,paid,overdue,partial',
             'due_date' => 'nullable|date|after_or_equal:payment_date',
             'mpesa_phone' => 'nullable|string|max:20',
             'mpesa_transaction_code' => 'nullable|string|max:50',
             'mpesa_checkout_request_id' => 'nullable|string|max:100',
-            'term' => 'nullable|string|max:50',
-            'academic_year' => 'nullable|string|max:50',
+            'term' => 'required|string|max:50',
+            'academic_year' => 'required|string|max:50',
+            'class_id' => 'nullable|exists:classes,id',
+            'grade_id' => 'nullable|exists:grades,id',
+            'notes' => 'nullable|string|max:500',
         ]);
+
+        // Get student details
+        $student = Students::with(['class', 'grade'])->find($validated['student_id']);
+        
+        // Set class and grade from student if not provided
+        if (empty($validated['class_id']) && $student) {
+            $validated['class_id'] = $student->class_id;
+        }
+        if (empty($validated['grade_id']) && $student) {
+            $validated['grade_id'] = $student->grade_id;
+        }
 
         // Generate receipt number if not provided
         if (empty($validated['receipt_no'])) {
@@ -201,9 +255,30 @@ class FeeController extends Controller
                                        str_pad(Fee::count() + 1, 4, '0', STR_PAD_LEFT);
         }
 
+        // Set amount_paid to amount if not provided (full payment)
+        if (empty($validated['amount_paid'])) {
+            $validated['amount_paid'] = $validated['amount'];
+        }
+
+        // Calculate balance
+        $balance = $validated['amount'] - $validated['amount_paid'];
+        $validated['balance'] = max(0, $balance);
+
+        // Determine status if not provided
+        if (empty($validated['status'])) {
+            if ($balance <= 0) {
+                $validated['status'] = 'paid';
+            } elseif ($validated['amount_paid'] > 0 && $balance > 0) {
+                $validated['status'] = 'partial';
+            } else {
+                $validated['status'] = 'pending';
+            }
+        }
+
         // If M-Pesa payment and transaction code provided, consider it paid
         if ($validated['payment_method'] === 'M-Pesa' && !empty($validated['mpesa_transaction_code'])) {
             $validated['status'] = 'paid';
+            $validated['balance'] = 0;
         }
 
         // If status is paid, set paid_at date
@@ -225,11 +300,11 @@ class FeeController extends Controller
             $validated['mpesa_checkout_request_id'] = $request->mpesa_checkout_request_id;
         }
 
+        // Create the fee record
         $fee = Fee::create($validated);
 
         // If M-Pesa payment, update student's phone if not set
         if ($validated['payment_method'] === 'M-Pesa' && $request->filled('mpesa_phone')) {
-            $student = Students::find($validated['student_id']);
             if ($student && empty($student->phone)) {
                 $student->update(['phone' => $request->mpesa_phone]);
             }
@@ -250,7 +325,7 @@ class FeeController extends Controller
      */
     public function show(Fee $fee)
     {
-        $fee->load('student.course');
+        $fee->load(['student.course', 'feeStructure', 'class', 'grade']);
         
         // Get related fees for the same student
         $relatedFees = Fee::where('student_id', $fee->student_id)
@@ -260,9 +335,19 @@ class FeeController extends Controller
                           ->get();
         
         // Calculate student's total payments
-        $studentTotal = Fee::where('student_id', $fee->student_id)->sum('amount');
+        $studentTotal = Fee::where('student_id', $fee->student_id)->sum('amount_paid');
         
-        return view('fees.show', compact('fee', 'relatedFees', 'studentTotal'));
+        // Get expected fees for this student
+        $expectedFees = null;
+        if ($fee->student) {
+            $expectedFees = Fee::getStudentPaymentSummary(
+                $fee->student_id,
+                $fee->term,
+                $fee->academic_year
+            );
+        }
+        
+        return view('fees.show', compact('fee', 'relatedFees', 'studentTotal', 'expectedFees'));
     }
 
     /**
@@ -270,7 +355,7 @@ class FeeController extends Controller
      */
     public function showReceipt($id)
     {
-        $fee = Fee::with('student.course')->findOrFail($id);
+        $fee = Fee::with(['student.course', 'feeStructure'])->findOrFail($id);
         return view('fees.receipt', compact('fee'));
     }
 
@@ -279,16 +364,33 @@ class FeeController extends Controller
      */
     public function edit(Fee $fee)
     {
-        $students = Students::with('course')
+        $students = Students::with(['class', 'grade', 'course'])
                             ->orderBy('first_name')
                             ->orderBy('last_name')
                             ->get();
         
         $paymentMethods = ['Cash', 'Bank Transfer', 'Cheque', 'M-Pesa', 'Credit Card', 'Other'];
-        $feeTypes = ['Tuition', 'Registration', 'Examination', 'Library', 'Sports', 'Laboratory', 'Other'];
-        $statuses = ['pending', 'paid', 'overdue'];
+        $feeTypes = FeeStructure::distinct('fee_type')->pluck('fee_type')->filter()->values();
+        if ($feeTypes->isEmpty()) {
+            $feeTypes = ['Tuition', 'Registration', 'Examination', 'Library', 'Sports', 'Laboratory', 'Other'];
+        }
+        $statuses = ['pending', 'paid', 'overdue', 'partial'];
+        $terms = ['Term 1', 'Term 2', 'Term 3'];
+        $academicYears = range(date('Y') - 1, date('Y') + 1);
+        $classes = Classes::all();
+        $grades = Grade::all();
         
-        return view('fees.edit', compact('fee', 'students', 'paymentMethods', 'feeTypes', 'statuses'));
+        return view('fees.edit', compact(
+            'fee', 
+            'students', 
+            'paymentMethods', 
+            'feeTypes', 
+            'statuses',
+            'terms',
+            'academicYears',
+            'classes',
+            'grades'
+        ));
     }
 
     /**
@@ -298,16 +400,43 @@ class FeeController extends Controller
     {
         $validated = $request->validate([
             'student_id' => 'required|exists:students,id',
+            'fee_structure_id' => 'nullable|exists:fee_structures,id',
             'amount' => 'required|numeric|min:0.01|max:999999.99',
+            'amount_paid' => 'nullable|numeric|min:0|max:amount',
             'payment_method' => 'required|string|in:Cash,Bank Transfer,Cheque,M-Pesa,Credit Card,Other',
             'receipt_no' => 'nullable|string|max:255|unique:fees,receipt_no,' . $fee->id,
             'payment_date' => 'required|date|before_or_equal:today',
-            'fee_type' => 'nullable|string|in:Tuition,Registration,Examination,Library,Sports,Laboratory,Other',
+            'fee_type' => 'required|string',
             'description' => 'nullable|string|max:500',
-            'status' => 'required|string|in:pending,paid,overdue',
+            'status' => 'nullable|string|in:pending,paid,overdue,partial',
             'due_date' => 'nullable|date|after_or_equal:payment_date',
             'mpesa_transaction_code' => 'nullable|string|max:50',
+            'term' => 'required|string|max:50',
+            'academic_year' => 'required|string|max:50',
+            'class_id' => 'nullable|exists:classes,id',
+            'grade_id' => 'nullable|exists:grades,id',
+            'notes' => 'nullable|string|max:500',
         ]);
+
+        // Set amount_paid to amount if not provided
+        if (empty($validated['amount_paid'])) {
+            $validated['amount_paid'] = $validated['amount'];
+        }
+
+        // Calculate balance
+        $balance = $validated['amount'] - $validated['amount_paid'];
+        $validated['balance'] = max(0, $balance);
+
+        // Determine status if not provided
+        if (empty($validated['status'])) {
+            if ($balance <= 0) {
+                $validated['status'] = 'paid';
+            } elseif ($validated['amount_paid'] > 0 && $balance > 0) {
+                $validated['status'] = 'partial';
+            } else {
+                $validated['status'] = 'pending';
+            }
+        }
 
         // Update paid_at if status changed to paid
         if ($validated['status'] === 'paid' && $fee->status !== 'paid') {
@@ -346,37 +475,37 @@ class FeeController extends Controller
         $startDate = $request->input('start_date', now()->startOfMonth()->toDateString());
         $endDate = $request->input('end_date', now()->toDateString());
 
-        $fees = Fee::with('student.course')
+        $fees = Fee::with(['student.course', 'feeStructure'])
                    ->whereDate('payment_date', '>=', $startDate)
                    ->whereDate('payment_date', '<=', $endDate)
                    ->orderBy('payment_date', 'desc')
                    ->get();
 
         $summary = [
-            'total_amount' => $fees->sum('amount'),
+            'total_amount' => $fees->sum('amount_paid'),
             'total_payments' => $fees->count(),
             'by_method' => $fees->groupBy('payment_method')->map(function($group) {
                 return [
                     'count' => $group->count(),
-                    'amount' => $group->sum('amount')
+                    'amount' => $group->sum('amount_paid')
                 ];
             }),
             'by_type' => $fees->groupBy('fee_type')->map(function($group) {
                 return [
                     'count' => $group->count(),
-                    'amount' => $group->sum('amount')
+                    'amount' => $group->sum('amount_paid')
                 ];
             }),
             'by_status' => $fees->groupBy('status')->map(function($group) {
                 return [
                     'count' => $group->count(),
-                    'amount' => $group->sum('amount')
+                    'amount' => $group->sum('amount_paid')
                 ];
             }),
             'daily' => $fees->groupBy(function($fee) {
                 return Carbon::parse($fee->payment_date)->format('Y-m-d');
             })->map(function($group) {
-                return $group->sum('amount');
+                return $group->sum('amount_paid');
             })
         ];
 
@@ -402,17 +531,22 @@ class FeeController extends Controller
             $handle = fopen('php://output', 'w');
             
             // Add headers
-            fputcsv($handle, ['Receipt No', 'Student', 'Amount', 'Payment Method', 'Fee Type', 'Status', 'Payment Date', 'Due Date']);
+            fputcsv($handle, ['Receipt No', 'Student', 'Amount', 'Amount Paid', 'Balance', 'Payment Method', 'Fee Type', 'Status', 'Term', 'Academic Year', 'Payment Date', 'Due Date']);
             
             // Add data
             foreach ($fees as $fee) {
+                $studentName = $fee->student ? $fee->student->first_name . ' ' . $fee->student->last_name : 'Unknown Student';
                 fputcsv($handle, [
                     $fee->receipt_no,
-                    $fee->student->first_name . ' ' . $fee->student->last_name,
+                    $studentName,
                     $fee->amount,
+                    $fee->amount_paid ?? 0,
+                    $fee->balance ?? 0,
                     $fee->payment_method,
                     $fee->fee_type,
                     $fee->status,
+                    $fee->term,
+                    $fee->academic_year,
                     $fee->payment_date,
                     $fee->due_date,
                 ]);
@@ -429,13 +563,13 @@ class FeeController extends Controller
      */
     public function studentFees($studentId)
     {
-        $student = Students::findOrFail($studentId);
+        $student = Students::with(['class', 'grade'])->findOrFail($studentId);
         $fees = Fee::where('student_id', $studentId)
                    ->orderBy('payment_date', 'desc')
                    ->get();
         
-        $totalPaid = $fees->where('status', 'paid')->sum('amount');
-        $totalPending = $fees->where('status', 'pending')->sum('amount');
+        $totalPaid = $fees->where('status', 'paid')->sum('amount_paid');
+        $totalPending = $fees->whereIn('status', ['pending', 'partial'])->sum('amount');
         
         return response()->json([
             'student' => $student,
@@ -443,6 +577,143 @@ class FeeController extends Controller
             'total_paid' => $totalPaid,
             'total_pending' => $totalPending,
         ]);
+    }
+
+    /**
+     * Calculate expected fees for a student (AJAX endpoint)
+     */
+    public function calculateExpected(Request $request)
+    {
+        try {
+            $studentId = $request->input('student_id');
+            $term = $request->input('term');
+            $academicYear = $request->input('academic_year');
+
+            if (!$studentId || !$term || !$academicYear) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Missing required parameters'
+                ], 400);
+            }
+
+            $student = Students::with(['class', 'grade'])->find($studentId);
+            if (!$student) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Student not found'
+                ], 404);
+            }
+
+            // Get fee structures for this student
+            $feeStructures = FeeStructure::active()
+                ->where('class_id', $student->class_id)
+                ->where('grade_id', $student->grade_id)
+                ->where('term', $term)
+                ->where('academic_year', $academicYear)
+                ->get();
+
+            // Get payment summary
+            $summary = Fee::getStudentPaymentSummary($studentId, $term, $academicYear);
+
+            // Get detailed fee breakdown
+            $feeBreakdown = Fee::getStudentFeesByStructure($studentId, $term, $academicYear);
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'student' => $student,
+                    'fee_structures' => $feeStructures,
+                    'summary' => $summary,
+                    'breakdown' => $feeBreakdown,
+                    'total_expected' => $summary['expected'],
+                    'total_paid' => $summary['paid'],
+                    'balance' => $summary['balance'],
+                    'all_paid' => $summary['all_paid'],
+                    'payment_percentage' => $summary['payment_percentage'],
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Calculate Expected Error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to calculate expected fees: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get fee structures for a student (AJAX endpoint)
+     */
+    public function getFeeStructures(Request $request)
+    {
+        try {
+            $studentId = $request->input('student_id');
+            $term = $request->input('term');
+            $academicYear = $request->input('academic_year');
+
+            if (!$studentId || !$term || !$academicYear) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Missing required parameters'
+                ], 400);
+            }
+
+            $student = Students::with(['class', 'grade'])->find($studentId);
+            if (!$student) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Student not found'
+                ], 404);
+            }
+
+            $feeStructures = FeeStructure::active()
+                ->where('class_id', $student->class_id)
+                ->where('grade_id', $student->grade_id)
+                ->where('term', $term)
+                ->where('academic_year', $academicYear)
+                ->get();
+
+            // Get existing payments for these fee structures
+            $existingPayments = Fee::where('student_id', $studentId)
+                ->where('term', $term)
+                ->where('academic_year', $academicYear)
+                ->whereIn('fee_structure_id', $feeStructures->pluck('id'))
+                ->get()
+                ->groupBy('fee_structure_id');
+
+            // Enhance fee structures with payment info
+            $enhancedStructures = $feeStructures->map(function($structure) use ($existingPayments) {
+                $payments = $existingPayments->get($structure->id, collect());
+                $totalPaid = $payments->sum('amount_paid');
+                $balance = $structure->amount - $totalPaid;
+                
+                return [
+                    'id' => $structure->id,
+                    'fee_type' => $structure->fee_type,
+                    'amount' => $structure->amount,
+                    'description' => $structure->description,
+                    'is_compulsory' => $structure->is_compulsory,
+                    'due_date' => $structure->due_date,
+                    'total_paid' => $totalPaid,
+                    'balance' => max(0, $balance),
+                    'is_fully_paid' => $balance <= 0,
+                    'payment_percentage' => $structure->amount > 0 ? round(($totalPaid / $structure->amount) * 100, 2) : 0,
+                ];
+            });
+
+            return response()->json([
+                'success' => true,
+                'data' => $enhancedStructures
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Get Fee Structures Error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to get fee structures: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
@@ -454,14 +725,14 @@ class FeeController extends Controller
         $driver = DB::connection()->getDriverName();
         
         if ($driver === 'pgsql') {
-            $monthlyTrend = Fee::selectRaw("TO_CHAR(payment_date, 'YYYY-MM') as month, SUM(amount) as total")
+            $monthlyTrend = Fee::selectRaw("TO_CHAR(payment_date, 'YYYY-MM') as month, SUM(amount_paid) as total")
                                ->whereNotNull('payment_date')
                                ->whereYear('payment_date', Carbon::now()->year)
                                ->groupBy('month')
                                ->orderBy('month')
                                ->get();
         } else {
-            $monthlyTrend = Fee::selectRaw("DATE_FORMAT(payment_date, '%Y-%m') as month, SUM(amount) as total")
+            $monthlyTrend = Fee::selectRaw("DATE_FORMAT(payment_date, '%Y-%m') as month, SUM(amount_paid) as total")
                                ->whereNotNull('payment_date')
                                ->whereYear('payment_date', Carbon::now()->year)
                                ->groupBy('month')
@@ -470,27 +741,32 @@ class FeeController extends Controller
         }
         
         $stats = [
-            'total_collected' => Fee::sum('amount') ?? 0,
-            'today_collected' => Fee::whereDate('payment_date', Carbon::today())->sum('amount') ?? 0,
+            'total_collected' => Fee::sum('amount_paid') ?? 0,
+            'today_collected' => Fee::whereDate('payment_date', Carbon::today())->sum('amount_paid') ?? 0,
             'this_month' => Fee::whereMonth('payment_date', Carbon::now()->month)
                                ->whereYear('payment_date', Carbon::now()->year)
-                               ->sum('amount') ?? 0,
+                               ->sum('amount_paid') ?? 0,
             'total_transactions' => Fee::count(),
             'pending_amount' => Fee::where('status', 'pending')->sum('amount') ?? 0,
             'overdue_amount' => Fee::where('status', 'overdue')->sum('amount') ?? 0,
-            'by_payment_method' => Fee::selectRaw('payment_method, count(*) as count, sum(amount) as total')
+            'partial_amount' => Fee::where('status', 'partial')->sum('amount') ?? 0,
+            'by_payment_method' => Fee::selectRaw('payment_method, count(*) as count, sum(amount_paid) as total')
                                         ->whereNotNull('payment_method')
                                         ->groupBy('payment_method')
                                         ->get(),
-            'by_fee_type' => Fee::selectRaw('fee_type, count(*) as count, sum(amount) as total')
+            'by_fee_type' => Fee::selectRaw('fee_type, count(*) as count, sum(amount_paid) as total')
                                  ->whereNotNull('fee_type')
                                  ->groupBy('fee_type')
                                  ->get(),
-            'top_students' => Students::withSum('fees', 'amount')
-                                      ->having('fees_sum_amount', '>', 0)
-                                      ->orderBy('fees_sum_amount', 'desc')
+            'by_status' => Fee::selectRaw('status, count(*) as count, sum(amount_paid) as total')
+                               ->whereNotNull('status')
+                               ->groupBy('status')
+                               ->get(),
+            'top_students' => Students::withSum('fees', 'amount_paid')
+                                      ->having('fees_sum_amount_paid', '>', 0)
+                                      ->orderBy('fees_sum_amount_paid', 'desc')
                                       ->limit(10)
-                                      ->get(['id', 'first_name', 'last_name', 'fees_sum_amount']),
+                                      ->get(['id', 'first_name', 'last_name', 'admission_number', 'fees_sum_amount_paid']),
             'monthly_trend' => $monthlyTrend,
         ];
 
@@ -506,6 +782,7 @@ class FeeController extends Controller
         $fee->update([
             'status' => 'paid',
             'paid_at' => now(),
+            'balance' => 0,
         ]);
 
         if (request()->expectsJson()) {
@@ -572,9 +849,13 @@ class FeeController extends Controller
                 'amount' => 'required|numeric|min:1|max:999999.99',
                 'phone' => 'required|string|max:20',
                 'reference' => 'nullable|string',
+                'term' => 'nullable|string',
+                'academic_year' => 'nullable|string',
+                'fee_type' => 'nullable|string',
+                'fee_structure_id' => 'nullable|exists:fee_structures,id',
             ]);
 
-            $student = Students::findOrFail($validated['student_id']);
+            $student = Students::with(['class', 'grade'])->findOrFail($validated['student_id']);
             $phone = $this->formatPhoneNumber($validated['phone']);
             $amount = $validated['amount'];
             $reference = $request->reference ?? 'PAY-' . $student->id . '-' . time();
@@ -590,7 +871,7 @@ class FeeController extends Controller
             // Check if M-Pesa is configured
             if (!$this->isMpesaConfigured()) {
                 Log::warning('⚠️ M-Pesa not configured, using simulation mode');
-                return $this->simulateMpesaPayment($student, $phone, $amount, $reference);
+                return $this->simulateMpesaPayment($student, $phone, $amount, $reference, $validated);
             }
 
             // Send actual M-Pesa STK Push
@@ -598,18 +879,27 @@ class FeeController extends Controller
 
             if ($response['success']) {
                 // Create pending fee record
-                $fee = Fee::create([
+                $feeData = [
                     'student_id' => $student->id,
                     'amount' => $amount,
+                    'amount_paid' => 0,
+                    'balance' => $amount,
                     'payment_method' => 'M-Pesa',
                     'payment_date' => now(),
                     'status' => 'pending',
                     'mpesa_phone' => $phone,
                     'mpesa_checkout_request_id' => $response['checkout_request_id'],
                     'receipt_no' => 'PND-' . time() . '-' . rand(1000, 9999),
-                    'fee_type' => 'Tuition',
+                    'fee_type' => $validated['fee_type'] ?? 'Tuition',
+                    'term' => $validated['term'] ?? now()->format('Y') . ' Term',
+                    'academic_year' => $validated['academic_year'] ?? now()->year,
                     'description' => 'M-Pesa Payment - ' . ($student->first_name ?? 'Student'),
-                ]);
+                    'class_id' => $student->class_id,
+                    'grade_id' => $student->grade_id,
+                    'fee_structure_id' => $validated['fee_structure_id'] ?? null,
+                ];
+
+                $fee = Fee::create($feeData);
 
                 Log::info('✅ Fee created with checkout ID:', [
                     'fee_id' => $fee->id,
@@ -707,6 +997,8 @@ class FeeController extends Controller
                     'resultCode' => '0',
                     'resultDesc' => 'Payment already completed',
                     'amount' => $fee->amount,
+                    'amount_paid' => $fee->amount_paid,
+                    'balance' => $fee->balance,
                     'mpesa_receipt_number' => $fee->mpesa_transaction_code ?? $fee->receipt_no,
                     'status' => 'completed',
                     'from_database' => true,
@@ -737,6 +1029,8 @@ class FeeController extends Controller
                         'mpesa_result_code' => $status['resultCode'],
                         'receipt_no' => $status['mpesa_receipt_number'] ?? $fee->receipt_no,
                         'mpesa_result_desc' => $status['resultDesc'] ?? 'Payment successful',
+                        'amount_paid' => $fee->amount,
+                        'balance' => 0,
                     ]);
                     Log::info('✅ Updated fee from API status: ' . $fee->id);
                 } elseif (in_array($status['resultCode'], ['1032', '1037', '2001'])) {
@@ -759,6 +1053,8 @@ class FeeController extends Controller
                         'mpesa_result_code' => $status['resultCode'],
                         'receipt_no' => $status['mpesa_receipt_number'] ?? $fee->receipt_no,
                         'mpesa_result_desc' => $status['resultDesc'] ?? 'Payment successful',
+                        'amount_paid' => $fee->amount,
+                        'balance' => 0,
                     ]);
                     Log::info('✅ Updated fee after status check: ' . $fee->id);
                 }
@@ -768,6 +1064,8 @@ class FeeController extends Controller
                     'resultCode' => '0',
                     'resultDesc' => $status['resultDesc'] ?? 'Payment successful',
                     'amount' => $fee->amount ?? $status['amount'] ?? 0,
+                    'amount_paid' => $fee->amount_paid ?? $status['amount'] ?? 0,
+                    'balance' => $fee->balance ?? 0,
                     'mpesa_receipt_number' => $status['mpesa_receipt_number'] ?? null,
                     'status' => 'completed',
                     'payment_id' => $fee->id ?? null,
@@ -880,7 +1178,7 @@ class FeeController extends Controller
             ]);
 
             if (!$this->isMpesaConfigured()) {
-                return $this->simulateMpesaPayment($fee->student, $fee->mpesa_phone, $fee->amount, $reference);
+                return $this->simulateMpesaPayment($fee->student, $fee->mpesa_phone, $fee->amount, $reference, []);
             }
 
             $response = $this->sendMpesaStkPush($fee->mpesa_phone, $fee->amount, $reference);
@@ -1191,7 +1489,7 @@ class FeeController extends Controller
     /**
      * Simulate M-Pesa payment (for testing)
      */
-    private function simulateMpesaPayment($student, $phone, $amount, $reference)
+    private function simulateMpesaPayment($student, $phone, $amount, $reference, $extraData = [])
     {
         Log::info('🔄 Simulating M-Pesa payment:', [
             'student' => $student->id,
@@ -1202,18 +1500,27 @@ class FeeController extends Controller
 
         $checkoutRequestId = 'SIM_' . time() . '_' . rand(1000, 9999);
         
-        $fee = Fee::create([
+        $feeData = [
             'student_id' => $student->id,
             'amount' => $amount,
+            'amount_paid' => 0,
+            'balance' => $amount,
             'payment_method' => 'M-Pesa',
             'payment_date' => now(),
             'status' => 'pending',
             'mpesa_phone' => $phone,
             'mpesa_checkout_request_id' => $checkoutRequestId,
             'receipt_no' => 'SIM-' . time() . '-' . rand(1000, 9999),
-            'fee_type' => 'Tuition',
+            'fee_type' => $extraData['fee_type'] ?? 'Tuition',
+            'term' => $extraData['term'] ?? now()->format('Y') . ' Term',
+            'academic_year' => $extraData['academic_year'] ?? now()->year,
             'description' => 'Simulated M-Pesa Payment - Testing Mode',
-        ]);
+            'class_id' => $student->class_id,
+            'grade_id' => $student->grade_id,
+            'fee_structure_id' => $extraData['fee_structure_id'] ?? null,
+        ];
+
+        $fee = Fee::create($feeData);
 
         Log::info('✅ Simulated fee created:', ['fee_id' => $fee->id, 'checkout_id' => $checkoutRequestId]);
 
@@ -1244,6 +1551,8 @@ class FeeController extends Controller
                 'mpesa_transaction_code' => 'SIM' . time() . rand(1000, 9999),
                 'mpesa_result_code' => '0',
                 'receipt_no' => 'SIM' . time() . rand(1000, 9999),
+                'amount_paid' => $fee->amount,
+                'balance' => 0,
             ]);
             Log::info('✅ Simulated fee marked as paid:', ['fee_id' => $fee->id]);
         }
@@ -1253,6 +1562,8 @@ class FeeController extends Controller
             'resultCode' => '0',
             'resultDesc' => 'The service request was processed successfully',
             'amount' => $fee->amount ?? 1000,
+            'amount_paid' => $fee->amount ?? 1000,
+            'balance' => 0,
             'mpesa_receipt_number' => 'SIM' . time() . rand(1000, 9999),
             'transaction_date' => Carbon::now()->format('YmdHis'),
             'phone_number' => $fee->mpesa_phone ?? '254700000000',
@@ -1365,9 +1676,12 @@ class FeeController extends Controller
                 }
                 
                 if ($studentId && $resultCode == 0) {
+                    $student = Students::find($studentId);
                     $fee = Fee::create([
                         'student_id' => $studentId,
                         'amount' => $amount,
+                        'amount_paid' => $amount,
+                        'balance' => 0,
                         'payment_method' => 'M-Pesa',
                         'payment_date' => now(),
                         'status' => 'paid',
@@ -1378,7 +1692,11 @@ class FeeController extends Controller
                         'mpesa_result_code' => $resultCode,
                         'receipt_no' => $mpesaReceiptNumber ?? 'RCP-' . time(),
                         'fee_type' => 'Tuition',
+                        'term' => now()->format('Y') . ' Term',
+                        'academic_year' => now()->year,
                         'description' => 'M-Pesa Payment - Callback',
+                        'class_id' => $student->class_id ?? null,
+                        'grade_id' => $student->grade_id ?? null,
                     ]);
                     
                     Log::info('✅ Created fee from callback: ' . $fee->id);
@@ -1416,6 +1734,8 @@ class FeeController extends Controller
                     'mpesa_response' => json_encode($data),
                     'mpesa_result_desc' => $resultDesc,
                     'receipt_no' => $receipt ?? $fee->receipt_no,
+                    'amount_paid' => $amount ?? $fee->amount,
+                    'balance' => 0,
                 ]);
 
                 Log::info('✅ Payment successful! Fee ID: ' . $fee->id . ', Receipt: ' . $receipt);
@@ -1478,6 +1798,8 @@ class FeeController extends Controller
                     'phone' => $fee->mpesa_phone,
                     'status' => $fee->status,
                     'amount' => $fee->amount,
+                    'amount_paid' => $fee->amount_paid,
+                    'balance' => $fee->balance,
                     'payment_date' => $fee->payment_date,
                     'receipt_no' => $fee->receipt_no,
                     'response' => $fee->mpesa_response,
@@ -1497,7 +1819,7 @@ class FeeController extends Controller
      */
     public function apiIndex(Request $request)
     {
-        $query = Fee::with('student.course');
+        $query = Fee::with(['student.course', 'feeStructure', 'class', 'grade']);
         
         if ($request->filled('student_id')) {
             $query->where('student_id', $request->student_id);
@@ -1507,13 +1829,21 @@ class FeeController extends Controller
             $query->where('status', $request->status);
         }
         
+        if ($request->filled('term')) {
+            $query->where('term', $request->term);
+        }
+        
+        if ($request->filled('academic_year')) {
+            $query->where('academic_year', $request->academic_year);
+        }
+        
         $fees = $query->orderBy('payment_date', 'desc')->get();
         
         return response()->json([
             'success' => true,
             'data' => $fees,
             'total' => $fees->count(),
-            'total_amount' => $fees->sum('amount')
+            'total_amount' => $fees->sum('amount_paid')
         ]);
     }
 
@@ -1522,7 +1852,7 @@ class FeeController extends Controller
      */
     public function apiShow($id)
     {
-        $fee = Fee::with('student.course')->findOrFail($id);
+        $fee = Fee::with(['student.course', 'feeStructure', 'class', 'grade'])->findOrFail($id);
         
         return response()->json([
             'success' => true,
@@ -1543,7 +1873,7 @@ class FeeController extends Controller
      */
     public function export(Request $request)
     {
-        $fees = Fee::with('student.course')
+        $fees = Fee::with(['student.course', 'feeStructure'])
                    ->orderBy('payment_date', 'desc')
                    ->get();
         
