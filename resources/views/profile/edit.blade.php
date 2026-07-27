@@ -79,9 +79,7 @@
                                 <a href="{{ route('dashboard') }}" class="btn btn-outline-primary btn-sm">
                                     <i class="fas fa-th-large me-2"></i> Go to Dashboard
                                 </a>
-                                <a href="{{ route('profile.activity') }}" class="btn btn-outline-secondary btn-sm">
-                                    <i class="fas fa-clock me-2"></i> View Activity Log
-                                </a>
+                               
                                 <form method="POST" action="{{ route('logout') }}" class="d-inline">
                                     @csrf
                                     <button type="submit" class="btn btn-outline-danger btn-sm w-100">
