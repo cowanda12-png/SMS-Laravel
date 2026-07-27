@@ -5,11 +5,11 @@ Add Student
 
 @section('content') 
 
-<div class="container-fluid px-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h1 class="h3 mb-0">Add New Student</h1>
-            <p class="text-muted small">Create a new student record in the system</p>
+<div class="container-fluid px-2 px-sm-3 px-md-4">
+    <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center mb-3 mb-md-4">
+        <div class="mb-2 mb-sm-0">
+            <h1 class="h4 h-md-3 mb-0">Add New Student</h1>
+            <p class="text-muted small mb-0">Create a new student record in the system</p>
         </div>
         <a href="{{ route('students.index') }}" class="btn btn-secondary btn-sm">
             <i class="fas fa-arrow-left me-1"></i> Back to Students
@@ -17,121 +17,346 @@ Add Student
     </div>
 
     <div class="card shadow-sm">
-        <div class="card-body">
-            <form action="{{ route('students.store') }}" method="POST">
+        <div class="card-body p-2 p-sm-3 p-md-4">
+            <form action="{{ route('students.store') }}" method="POST" enctype="multipart/form-data">
                 @csrf
 
-                <div class="row">
-                    <div class="col-md-6 mb-3">
-                        <label for="first_name" class="form-label fw-semibold">First Name <span class="text-danger">*</span></label>
-                        <input type="text" 
-                               class="form-control @error('first_name') is-invalid @enderror" 
-                               id="first_name" 
-                               name="first_name" 
-                               value="{{ old('first_name') }}" 
-                               placeholder="Enter first name" 
-                               required>
-                        @error('first_name')
-                            <div class="invalid-feedback">{{ $message }}</div>
-                        @enderror
-                    </div>
+                <!-- Personal Information Section -->
+                <div class="mb-4">
+                    <h5 class="border-bottom pb-2 mb-3">
+                        <i class="fas fa-user me-2 text-primary"></i> Personal Information
+                    </h5>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="first_name" class="form-label fw-semibold">
+                                First Name <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" 
+                                   class="form-control @error('first_name') is-invalid @enderror" 
+                                   id="first_name" 
+                                   name="first_name" 
+                                   value="{{ old('first_name') }}" 
+                                   placeholder="Enter first name" 
+                                   required>
+                            @error('first_name')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
 
-                    <div class="col-md-6 mb-3">
-                        <label for="last_name" class="form-label fw-semibold">Last Name <span class="text-danger">*</span></label>
-                        <input type="text" 
-                               class="form-control @error('last_name') is-invalid @enderror" 
-                               id="last_name" 
-                               name="last_name" 
-                               value="{{ old('last_name') }}" 
-                               placeholder="Enter last name" 
-                               required>
-                        @error('last_name')
-                            <div class="invalid-feedback">{{ $message }}</div>
-                        @enderror
-                    </div>
+                        <div class="col-md-6">
+                            <label for="last_name" class="form-label fw-semibold">
+                                Last Name <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" 
+                                   class="form-control @error('last_name') is-invalid @enderror" 
+                                   id="last_name" 
+                                   name="last_name" 
+                                   value="{{ old('last_name') }}" 
+                                   placeholder="Enter last name" 
+                                   required>
+                            @error('last_name')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
 
-                    <div class="col-md-6 mb-3">
-                        <label for="admission_number" class="form-label fw-semibold">Admission Number</label>
-                        <input type="text" 
-                               class="form-control @error('admission_number') is-invalid @enderror" 
-                               id="admission_number" 
-                               name="admission_number" 
-                               value="{{ old('admission_number') }}" 
-                               placeholder="e.g., ADM001">
-                        @error('admission_number')
-                            <div class="invalid-feedback">{{ $message }}</div>
-                        @enderror
-                    </div>
+                        <div class="col-md-6">
+                            <label for="date_of_birth" class="form-label fw-semibold">
+                                Date of Birth
+                            </label>
+                            <input type="date" 
+                                   class="form-control @error('date_of_birth') is-invalid @enderror" 
+                                   id="date_of_birth" 
+                                   name="date_of_birth" 
+                                   value="{{ old('date_of_birth') }}">
+                            @error('date_of_birth')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
 
-                    <div class="col-md-6 mb-3">
-                        <label for="email" class="form-label fw-semibold">Email <span class="text-danger">*</span></label>
-                        <input type="email" 
-                               class="form-control @error('email') is-invalid @enderror" 
-                               id="email" 
-                               name="email" 
-                               value="{{ old('email') }}" 
-                               placeholder="Enter email address" 
-                               required>
-                        @error('email')
-                            <div class="invalid-feedback">{{ $message }}</div>
-                        @enderror
-                    </div>
-
-                    <div class="col-md-6 mb-3">
-                        <label for="phone" class="form-label fw-semibold">Phone Number</label>
-                        <input type="text" 
-                               class="form-control @error('phone') is-invalid @enderror" 
-                               id="phone" 
-                               name="phone" 
-                               value="{{ old('phone') }}" 
-                               placeholder="Enter phone number">
-                        @error('phone')
-                            <div class="invalid-feedback">{{ $message }}</div>
-                        @enderror
-                    </div>
-
-                    <div class="col-md-6 mb-3">
-                        <label for="course_id" class="form-label fw-semibold">Course</label>
-                        <select class="form-select @error('course_id') is-invalid @enderror" id="course_id" name="course_id">
-                            <option value="">Select Course</option>
-                            @foreach($courses ?? [] as $course)
-                                <option value="{{ $course->id }}" {{ old('course_id') == $course->id ? 'selected' : '' }}>
-                                    {{ $course->course_name ?? $course->name ?? 'Unknown' }}
-                                </option>
-                            @endforeach
-                        </select>
-                        @error('course_id')
-                            <div class="invalid-feedback">{{ $message }}</div>
-                        @enderror
-                    </div>
-
-                    <div class="col-md-6 mb-3">
-                        <label for="status" class="form-label fw-semibold">Status</label>
-                        <select class="form-select @error('status') is-invalid @enderror" id="status" name="status">
-                            <option value="active" {{ old('status') == 'active' ? 'selected' : '' }}>Active</option>
-                            <option value="inactive" {{ old('status') == 'inactive' ? 'selected' : '' }}>Inactive</option>
-                            <option value="pending" {{ old('status') == 'pending' ? 'selected' : '' }}>Pending</option>
-                            <option value="graduated" {{ old('status') == 'graduated' ? 'selected' : '' }}>Graduated</option>
-                        </select>
-                        @error('status')
-                            <div class="invalid-feedback">{{ $message }}</div>
-                        @enderror
-                    </div>
-
-                    <div class="col-md-12 mb-3">
-                        <label for="address" class="form-label fw-semibold">Address</label>
-                        <textarea class="form-control @error('address') is-invalid @enderror" 
-                                  id="address" 
-                                  name="address" 
-                                  rows="2" 
-                                  placeholder="Enter address">{{ old('address') }}</textarea>
-                        @error('address')
-                            <div class="invalid-feedback">{{ $message }}</div>
-                        @enderror
+                        <div class="col-md-6">
+                            <label for="gender" class="form-label fw-semibold">
+                                Gender
+                            </label>
+                            <select class="form-select @error('gender') is-invalid @enderror" id="gender" name="gender">
+                                <option value="">Select Gender</option>
+                                <option value="male" {{ old('gender') == 'male' ? 'selected' : '' }}>Male</option>
+                                <option value="female" {{ old('gender') == 'female' ? 'selected' : '' }}>Female</option>
+                                <option value="other" {{ old('gender') == 'other' ? 'selected' : '' }}>Other</option>
+                            </select>
+                            @error('gender')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
                     </div>
                 </div>
 
-                <div class="d-flex gap-2 mt-3">
+                <!-- Contact Information Section -->
+                <div class="mb-4">
+                    <h5 class="border-bottom pb-2 mb-3">
+                        <i class="fas fa-phone me-2 text-primary"></i> Contact Information
+                    </h5>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="email" class="form-label fw-semibold">
+                                Email <span class="text-danger">*</span>
+                            </label>
+                            <input type="email" 
+                                   class="form-control @error('email') is-invalid @enderror" 
+                                   id="email" 
+                                   name="email" 
+                                   value="{{ old('email') }}" 
+                                   placeholder="Enter email address" 
+                                   required>
+                            @error('email')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+
+                        <div class="col-md-6">
+                            <label for="phone" class="form-label fw-semibold">
+                                Phone Number
+                            </label>
+                            <input type="text" 
+                                   class="form-control @error('phone') is-invalid @enderror" 
+                                   id="phone" 
+                                   name="phone" 
+                                   value="{{ old('phone') }}" 
+                                   placeholder="Enter phone number">
+                            @error('phone')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+
+                        <div class="col-md-6">
+                            <label for="alternate_phone" class="form-label fw-semibold">
+                                Alternate Phone
+                            </label>
+                            <input type="text" 
+                                   class="form-control @error('alternate_phone') is-invalid @enderror" 
+                                   id="alternate_phone" 
+                                   name="alternate_phone" 
+                                   value="{{ old('alternate_phone') }}" 
+                                   placeholder="Enter alternate phone number">
+                            @error('alternate_phone')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+
+                        <div class="col-md-12">
+                            <label for="address" class="form-label fw-semibold">
+                                Address
+                            </label>
+                            <textarea class="form-control @error('address') is-invalid @enderror" 
+                                      id="address" 
+                                      name="address" 
+                                      rows="2" 
+                                      placeholder="Enter address">{{ old('address') }}</textarea>
+                            @error('address')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Guardian Information Section -->
+                <div class="mb-4">
+                    <h5 class="border-bottom pb-2 mb-3">
+                        <i class="fas fa-user-shield me-2 text-primary"></i> Guardian Information
+                    </h5>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="guardian_name" class="form-label fw-semibold">
+                                Guardian Name
+                            </label>
+                            <input type="text" 
+                                   class="form-control @error('guardian_name') is-invalid @enderror" 
+                                   id="guardian_name" 
+                                   name="guardian_name" 
+                                   value="{{ old('guardian_name') }}" 
+                                   placeholder="Enter guardian name">
+                            @error('guardian_name')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+
+                        <div class="col-md-6">
+                            <label for="guardian_phone" class="form-label fw-semibold">
+                                Guardian Phone
+                            </label>
+                            <input type="text" 
+                                   class="form-control @error('guardian_phone') is-invalid @enderror" 
+                                   id="guardian_phone" 
+                                   name="guardian_phone" 
+                                   value="{{ old('guardian_phone') }}" 
+                                   placeholder="Enter guardian phone">
+                            @error('guardian_phone')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+
+                        <div class="col-md-6">
+                            <label for="guardian_email" class="form-label fw-semibold">
+                                Guardian Email
+                            </label>
+                            <input type="email" 
+                                   class="form-control @error('guardian_email') is-invalid @enderror" 
+                                   id="guardian_email" 
+                                   name="guardian_email" 
+                                   value="{{ old('guardian_email') }}" 
+                                   placeholder="Enter guardian email">
+                            @error('guardian_email')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Academic Information Section -->
+                <div class="mb-4">
+                    <h5 class="border-bottom pb-2 mb-3">
+                        <i class="fas fa-graduation-cap me-2 text-primary"></i> Academic Information
+                    </h5>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="admission_number" class="form-label fw-semibold">
+                                Admission Number
+                            </label>
+                            <input type="text" 
+                                   class="form-control @error('admission_number') is-invalid @enderror" 
+                                   id="admission_number" 
+                                   name="admission_number" 
+                                   value="{{ old('admission_number') }}" 
+                                   placeholder="e.g., ADM-2024-001">
+                            <small class="text-muted">Leave blank to auto-generate</small>
+                            @error('admission_number')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+
+                        <div class="col-md-6">
+                            <label for="registration_number" class="form-label fw-semibold">
+                                Registration Number
+                            </label>
+                            <input type="text" 
+                                   class="form-control @error('registration_number') is-invalid @enderror" 
+                                   id="registration_number" 
+                                   name="registration_number" 
+                                   value="{{ old('registration_number') }}" 
+                                   placeholder="e.g., REG-2024-001">
+                            @error('registration_number')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+
+                        <div class="col-md-6">
+                            <label for="course_id" class="form-label fw-semibold">
+                                Course
+                            </label>
+                            <select class="form-select @error('course_id') is-invalid @enderror" id="course_id" name="course_id">
+                                <option value="">Select Course</option>
+                                @foreach($courses ?? [] as $course)
+                                    <option value="{{ $course->id }}" {{ old('course_id') == $course->id ? 'selected' : '' }}>
+                                        {{ $course->course_name ?? $course->name ?? 'Unknown' }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            @error('course_id')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+
+                        <div class="col-md-6">
+                            <label for="class_id" class="form-label fw-semibold">
+                                Class
+                            </label>
+                            <select class="form-select @error('class_id') is-invalid @enderror" id="class_id" name="class_id">
+                                <option value="">Select Class</option>
+                                @foreach($classes ?? [] as $class)
+                                    <option value="{{ $class->id }}" {{ old('class_id') == $class->id ? 'selected' : '' }}>
+                                        {{ $class->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            @error('class_id')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+
+                        <div class="col-md-6">
+                            <label for="grade_id" class="form-label fw-semibold">
+                                Grade
+                            </label>
+                            <select class="form-select @error('grade_id') is-invalid @enderror" id="grade_id" name="grade_id">
+                                <option value="">Select Grade</option>
+                                @foreach($grades ?? [] as $grade)
+                                    <option value="{{ $grade->id }}" {{ old('grade_id') == $grade->id ? 'selected' : '' }}>
+                                        {{ $grade->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            @error('grade_id')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+
+                        <div class="col-md-6">
+                            <label for="enrollment_date" class="form-label fw-semibold">
+                                Enrollment Date
+                            </label>
+                            <input type="date" 
+                                   class="form-control @error('enrollment_date') is-invalid @enderror" 
+                                   id="enrollment_date" 
+                                   name="enrollment_date" 
+                                   value="{{ old('enrollment_date', date('Y-m-d')) }}">
+                            @error('enrollment_date')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+
+                        <div class="col-md-6">
+                            <label for="status" class="form-label fw-semibold">
+                                Status
+                            </label>
+                            <select class="form-select @error('status') is-invalid @enderror" id="status" name="status">
+                                <option value="active" {{ old('status') == 'active' ? 'selected' : '' }}>Active</option>
+                                <option value="pending" {{ old('status') == 'pending' ? 'selected' : '' }}>Pending</option>
+                                <option value="inactive" {{ old('status') == 'inactive' ? 'selected' : '' }}>Inactive</option>
+                                <option value="graduated" {{ old('status') == 'graduated' ? 'selected' : '' }}>Graduated</option>
+                                <option value="suspended" {{ old('status') == 'suspended' ? 'selected' : '' }}>Suspended</option>
+                                <option value="expelled" {{ old('status') == 'expelled' ? 'selected' : '' }}>Expelled</option>
+                            </select>
+                            @error('status')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Profile Image Section -->
+                <div class="mb-4">
+                    <h5 class="border-bottom pb-2 mb-3">
+                        <i class="fas fa-image me-2 text-primary"></i> Profile Image
+                    </h5>
+                    <div class="row g-3">
+                        <div class="col-md-12">
+                            <label for="profile_image" class="form-label fw-semibold">
+                                Profile Picture
+                            </label>
+                            <input type="file" 
+                                   class="form-control @error('profile_image') is-invalid @enderror" 
+                                   id="profile_image" 
+                                   name="profile_image" 
+                                   accept="image/*">
+                            <small class="text-muted">Accepted formats: JPG, PNG, GIF. Max size: 2MB</small>
+                            @error('profile_image')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Form Actions -->
+                <div class="d-flex flex-wrap gap-2 mt-4 pt-3 border-top">
                     <button type="submit" class="btn btn-primary">
                         <i class="fas fa-save me-1"></i> Save Student
                     </button>
@@ -148,6 +373,7 @@ Add Student
     .form-label {
         font-size: 0.9rem;
         margin-bottom: 0.3rem;
+        font-weight: 500;
     }
     
     .form-control, .form-select {
@@ -155,6 +381,7 @@ Add Student
         padding: 10px 12px;
         border: 1px solid #e0e0e0;
         transition: all 0.3s ease;
+        font-size: 0.9rem;
     }
     
     .form-control:focus, .form-select:focus {
@@ -191,6 +418,41 @@ Add Student
     
     .text-danger {
         color: #dc3545 !important;
+    }
+    
+    .text-muted {
+        font-size: 0.8rem;
+    }
+    
+    .border-bottom {
+        border-bottom: 2px solid #f0f0f0 !important;
+    }
+    
+    .border-top {
+        border-top: 2px solid #f0f0f0 !important;
+    }
+    
+    /* Responsive adjustments */
+    @media (max-width: 576px) {
+        .form-control, .form-select {
+            padding: 8px 10px;
+            font-size: 0.85rem;
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            font-size: 0.85rem;
+        }
+        
+        h5 {
+            font-size: 1rem;
+        }
+    }
+    
+    @media (min-width: 768px) {
+        .container-fluid {
+            padding: 0 2rem;
+        }
     }
 </style>
 
