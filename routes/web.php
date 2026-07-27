@@ -142,7 +142,7 @@ Route::prefix('reports')->middleware('auth')->group(function () {
     Route::get('/export/{type}', [ReportController::class, 'export'])->name('reports.export');
 });
 
-// ==================== ⭐ EXAM ROUTES (FIXED - NO DUPLICATES) ====================
+// ==================== ⭐ EXAM ROUTES ====================
 Route::middleware('auth')->group(function () {
     // ⭐ CUSTOM RECORD-MARKS ROUTES (NOT in resource)
     Route::get('/exams/{exam}/record-marks', [ExamController::class, 'recordMarks'])->name('exams.record-marks');
