@@ -104,9 +104,9 @@ Dashboard
             <div class="card border-0 shadow-sm">
                 <div class="card-header bg-transparent border-0 d-flex flex-wrap justify-content-between align-items-center py-3">
                     <h5 class="fw-bold mb-2 mb-sm-0">Enrollment Trends</h5>
-                    <div class="btn-group btn-group-sm">
-                        <button class="btn btn-outline-primary" onclick="updateChart('weekly')">Weekly</button>
-                        <button class="btn btn-outline-secondary" onclick="updateChart('monthly')">Monthly</button>
+                    <div class="btn-group btn-group-sm" role="group">
+                        <button class="btn btn-outline-primary active" onclick="updateChart('daily')">Daily</button>
+                        <button class="btn btn-outline-secondary" onclick="updateChart('yearly')">Yearly</button>
                     </div>
                 </div>
                 <div class="card-body">
@@ -119,9 +119,9 @@ Dashboard
             <div class="card border-0 shadow-sm">
                 <div class="card-header bg-transparent border-0 d-flex flex-wrap justify-content-between align-items-center py-3">
                     <h5 class="fw-bold mb-2 mb-sm-0">Fee Collection Overview</h5>
-                    <div class="btn-group btn-group-sm">
-                        <button class="btn btn-outline-primary" onclick="updateFeeChart('weekly')">Weekly</button>
-                        <button class="btn btn-outline-secondary" onclick="updateFeeChart('monthly')">Monthly</button>
+                    <div class="btn-group btn-group-sm" role="group">
+                        <button class="btn btn-outline-primary active" onclick="updateFeeChart('daily')">Daily</button>
+                        <button class="btn btn-outline-secondary" onclick="updateFeeChart('yearly')">Yearly</button>
                     </div>
                 </div>
                 <div class="card-body">
@@ -243,7 +243,6 @@ Dashboard
                         <a href="{{ route('fees.index') }}" class="btn btn-outline-primary">
                             <i class="fas fa-list me-2"></i> View All Fees
                         </a>
-                        <!-- FIXED: Generate Report button - using correct route -->
                         <a href="{{ route('students.create') }}" class="btn btn-outline-secondary">
                             <i class="fas fa-user-plus me-2"></i> Add New Student
                         </a>
@@ -251,6 +250,128 @@ Dashboard
                 </div>
             </div>
         </div>
+    </div>
+
+    <!-- Exams & Reports Section -->
+    <div class="row g-3 mb-4">
+        <div class="col-xl-6">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-transparent border-0 d-flex flex-wrap justify-content-between align-items-center py-3">
+                    <h5 class="fw-bold mb-2 mb-sm-0">
+                        <i class="fas fa-pencil-alt text-primary me-2"></i>Exams Overview
+                    </h5>
+                    <a href="{{ route('exams.index') }}" class="btn btn-sm btn-primary">Manage Exams</a>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <div class="p-3 bg-light rounded-3 text-center">
+                                <h6 class="text-muted mb-1">Upcoming Exams</h6>
+                                <h3 class="fw-bold text-primary mb-0">{{ $upcomingExams ?? 0 }}</h3>
+                                <small class="text-muted">Next: {{ $nextExamDate ?? 'N/A' }}</small>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="p-3 bg-light rounded-3 text-center">
+                                <h6 class="text-muted mb-1">Completed Exams</h6>
+                                <h3 class="fw-bold text-success mb-0">{{ $completedExams ?? 0 }}</h3>
+                                <small class="text-muted">This semester</small>
+                            </div>
+                        </div>
+                        <div class="col-12 mt-2">
+                            @if(isset($recentExams) && $recentExams->count() > 0)
+                                @foreach($recentExams as $exam)
+                                    <div class="d-flex justify-content-between align-items-center p-2 border-bottom">
+                                        <span class="text-muted small">
+                                            📝 {{ $exam->subject ?? $exam->name ?? 'Untitled' }}
+                                            @if(isset($exam->exam_date))
+                                                <br><small class="text-muted">{{ \Carbon\Carbon::parse($exam->exam_date)->format('M d, Y') }}</small>
+                                            @endif
+                                        </span>
+                                        <span class="badge bg-{{ $exam->status == 'upcoming' ? 'warning' : ($exam->status == 'completed' ? 'success' : ($exam->status == 'ongoing' ? 'info' : 'secondary')) }}">
+                                            {{ ucfirst($exam->status ?? 'Upcoming') }}
+                                        </span>
+                                    </div>
+                                @endforeach
+                            @else
+                                <div class="text-center py-3 text-muted">
+                                    <small>No exams scheduled</small>
+                                </div>
+                            @endif
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-6">
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-transparent border-0 d-flex flex-wrap justify-content-between align-items-center py-3">
+            <h5 class="fw-bold mb-2 mb-sm-0">
+                <i class="fas fa-chart-bar text-info me-2"></i>Reports
+            </h5>
+            <a href="{{ route('reports.dashboard') }}" class="btn btn-sm btn-primary">View All</a>
+        </div>
+        <div class="card-body">
+            <div class="row g-2">
+                <div class="col-6 col-md-4">
+                    <a href="{{ route('reports.student-statement') }}" class="text-decoration-none">
+                        <div class="p-3 bg-light rounded-3 text-center hover-card">
+                            <i class="fas fa-user-graduate fa-2x text-primary mb-2"></i>
+                            <h6 class="mb-0 small">Student Statement</h6>
+                            <small class="text-muted">{{ $reportStats['student_reports'] ?? 0 }}</small>
+                        </div>
+                    </a>
+                </div>
+                <div class="col-6 col-md-4">
+                    <a href="{{ route('reports.fee-collection') }}" class="text-decoration-none">
+                        <div class="p-3 bg-light rounded-3 text-center hover-card">
+                            <i class="fas fa-money-bill-wave fa-2x text-success mb-2"></i>
+                            <h6 class="mb-0 small">Fee Collection</h6>
+                            <small class="text-muted">{{ $reportStats['fee_reports'] ?? 0 }}</small>
+                        </div>
+                    </a>
+                </div>
+                <div class="col-6 col-md-4">
+                    <a href="{{ route('reports.fee-summary') }}" class="text-decoration-none">
+                        <div class="p-3 bg-light rounded-3 text-center hover-card">
+                            <i class="fas fa-chart-pie fa-2x text-warning mb-2"></i>
+                            <h6 class="mb-0 small">Fee Summary</h6>
+                            <small class="text-muted">Overview</small>
+                        </div>
+                    </a>
+                </div>
+                <div class="col-6 col-md-4">
+                    <a href="{{ route('reports.course-revenue') }}" class="text-decoration-none">
+                        <div class="p-3 bg-light rounded-3 text-center hover-card">
+                            <i class="fas fa-trophy fa-2x text-danger mb-2"></i>
+                            <h6 class="mb-0 small">Course Revenue</h6>
+                            <small class="text-muted">{{ $reportStats['performance_reports'] ?? 0 }}</small>
+                        </div>
+                    </a>
+                </div>
+                <div class="col-6 col-md-4">
+                    <a href="{{ route('reports.daily-collection') }}" class="text-decoration-none">
+                        <div class="p-3 bg-light rounded-3 text-center hover-card">
+                            <i class="fas fa-calendar-day fa-2x text-info mb-2"></i>
+                            <h6 class="mb-0 small">Daily Collection</h6>
+                            <small class="text-muted">Today</small>
+                        </div>
+                    </a>
+                </div>
+                <div class="col-6 col-md-4">
+                    <a href="{{ route('reports.outstanding-balances') }}" class="text-decoration-none">
+                        <div class="p-3 bg-light rounded-3 text-center hover-card">
+                            <i class="fas fa-exclamation-triangle fa-2x text-danger mb-2"></i>
+                            <h6 class="mb-0 small">Outstanding</h6>
+                            <small class="text-muted">Balances</small>
+                        </div>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
     </div>
 
     <!-- Recent Students & Fee Payments -->
@@ -495,6 +616,17 @@ Dashboard
         transform: translateY(-2px);
     }
     
+    .hover-card {
+        transition: all 0.3s ease;
+        cursor: pointer;
+    }
+    
+    .hover-card:hover {
+        background: #ffffff !important;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+        transform: translateY(-3px);
+    }
+    
     .progress {
         background-color: #e9ecef;
         border-radius: 10px;
@@ -628,6 +760,34 @@ Dashboard
 <script>
     let enrollmentChart, feeChart;
 
+    // Prepare data with safe defaults using PHP
+    <?php
+        // Default arrays
+        $defaultDailyLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+        $defaultDailyEnrollment = [5, 8, 6, 12, 15, 10, 7];
+        $defaultDailyTotal = [50, 58, 64, 76, 91, 101, 108];
+        $defaultYearlyLabels = ['2019', '2020', '2021', '2022', '2023', '2024', '2025'];
+        $defaultYearlyEnrollment = [120, 150, 180, 220, 280, 350, 420];
+        $defaultYearlyTotal = [650, 720, 800, 850, 900, 1000, 1150];
+        $defaultDailyCollected = [1200, 1500, 1800, 2200, 2800, 1500, 900];
+        $defaultDailyPending = [500, 400, 300, 200, 150, 100, 80];
+        $defaultYearlyCollected = [50000, 65000, 72000, 85000, 92000, 105000, 120000];
+        $defaultYearlyPending = [20000, 18000, 15000, 12000, 10000, 8000, 6000];
+    ?>
+
+    const chartData = {
+        dailyLabels: <?php echo json_encode($dailyLabels ?? $defaultDailyLabels); ?>,
+        dailyEnrollment: <?php echo json_encode($dailyEnrollment ?? $defaultDailyEnrollment); ?>,
+        dailyTotal: <?php echo json_encode($dailyTotal ?? $defaultDailyTotal); ?>,
+        yearlyLabels: <?php echo json_encode($yearlyLabels ?? $defaultYearlyLabels); ?>,
+        yearlyEnrollment: <?php echo json_encode($yearlyEnrollment ?? $defaultYearlyEnrollment); ?>,
+        yearlyTotal: <?php echo json_encode($yearlyTotal ?? $defaultYearlyTotal); ?>,
+        dailyCollected: <?php echo json_encode($dailyCollected ?? $defaultDailyCollected); ?>,
+        dailyPending: <?php echo json_encode($dailyPending ?? $defaultDailyPending); ?>,
+        yearlyCollected: <?php echo json_encode($yearlyCollected ?? $defaultYearlyCollected); ?>,
+        yearlyPending: <?php echo json_encode($yearlyPending ?? $defaultYearlyPending); ?>
+    };
+
     document.addEventListener('DOMContentLoaded', function() {
         // Enrollment Chart
         const enrollmentCtx = document.getElementById('enrollmentChart');
@@ -635,10 +795,10 @@ Dashboard
             enrollmentChart = new Chart(enrollmentCtx.getContext('2d'), {
                 type: 'line',
                 data: {
-                    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul'],
+                    labels: chartData.dailyLabels,
                     datasets: [{
                         label: 'New Enrollments',
-                        data: [12, 19, 15, 22, 28, 35, 42],
+                        data: chartData.dailyEnrollment,
                         borderColor: '#6c8cff',
                         backgroundColor: 'rgba(108, 140, 255, 0.1)',
                         borderWidth: 2,
@@ -647,7 +807,7 @@ Dashboard
                         pointRadius: 4
                     }, {
                         label: 'Total Students',
-                        data: [65, 72, 80, 85, 90, 100, 115],
+                        data: chartData.dailyTotal,
                         borderColor: '#28a745',
                         backgroundColor: 'rgba(40, 167, 69, 0.1)',
                         borderWidth: 2,
@@ -698,16 +858,16 @@ Dashboard
             feeChart = new Chart(feeCtx.getContext('2d'), {
                 type: 'bar',
                 data: {
-                    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul'],
+                    labels: chartData.dailyLabels,
                     datasets: [{
                         label: 'Collected',
-                        data: [5000, 6500, 7200, 8500, 9200, 10500, 12000],
+                        data: chartData.dailyCollected,
                         backgroundColor: 'rgba(40, 167, 69, 0.8)',
                         borderColor: '#28a745',
                         borderWidth: 1
                     }, {
                         label: 'Pending',
-                        data: [2000, 1800, 1500, 1200, 1000, 800, 600],
+                        data: chartData.dailyPending,
                         backgroundColor: 'rgba(255, 193, 7, 0.8)',
                         borderColor: '#ffc107',
                         borderWidth: 1
@@ -755,48 +915,70 @@ Dashboard
         if (!enrollmentChart) return;
         
         const data = {
-            weekly: {
-                labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-                new: [5, 8, 6, 12, 15, 10, 7],
-                total: [50, 58, 64, 76, 91, 101, 108]
+            daily: {
+                labels: chartData.dailyLabels,
+                new: chartData.dailyEnrollment,
+                total: chartData.dailyTotal
             },
-            monthly: {
-                labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul'],
-                new: [12, 19, 15, 22, 28, 35, 42],
-                total: [65, 72, 80, 85, 90, 100, 115]
+            yearly: {
+                labels: chartData.yearlyLabels,
+                new: chartData.yearlyEnrollment,
+                total: chartData.yearlyTotal
             }
         };
 
-        const selected = data[type] || data.monthly;
+        const selected = data[type] || data.daily;
         
         enrollmentChart.data.labels = selected.labels;
         enrollmentChart.data.datasets[0].data = selected.new;
         enrollmentChart.data.datasets[1].data = selected.total;
         enrollmentChart.update();
+
+        // Update button states
+        const buttons = document.querySelector('#enrollmentChart').closest('.card').querySelectorAll('.btn-group .btn');
+        buttons.forEach(btn => {
+            btn.classList.remove('active', 'btn-outline-primary', 'btn-outline-secondary');
+            if (btn.textContent.toLowerCase() === type) {
+                btn.classList.add('active', 'btn-outline-primary');
+            } else {
+                btn.classList.add('btn-outline-secondary');
+            }
+        });
     }
 
     function updateFeeChart(type) {
         if (!feeChart) return;
         
         const data = {
-            weekly: {
-                labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-                collected: [1200, 1500, 1800, 2200, 2800, 1500, 900],
-                pending: [500, 400, 300, 200, 150, 100, 80]
+            daily: {
+                labels: chartData.dailyLabels,
+                collected: chartData.dailyCollected,
+                pending: chartData.dailyPending
             },
-            monthly: {
-                labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul'],
-                collected: [5000, 6500, 7200, 8500, 9200, 10500, 12000],
-                pending: [2000, 1800, 1500, 1200, 1000, 800, 600]
+            yearly: {
+                labels: chartData.yearlyLabels,
+                collected: chartData.yearlyCollected,
+                pending: chartData.yearlyPending
             }
         };
 
-        const selected = data[type] || data.monthly;
+        const selected = data[type] || data.daily;
         
         feeChart.data.labels = selected.labels;
         feeChart.data.datasets[0].data = selected.collected;
         feeChart.data.datasets[1].data = selected.pending;
         feeChart.update();
+
+        // Update button states
+        const buttons = document.querySelector('#feeChart').closest('.card').querySelectorAll('.btn-group .btn');
+        buttons.forEach(btn => {
+            btn.classList.remove('active', 'btn-outline-primary', 'btn-outline-secondary');
+            if (btn.textContent.toLowerCase() === type) {
+                btn.classList.add('active', 'btn-outline-primary');
+            } else {
+                btn.classList.add('btn-outline-secondary');
+            }
+        });
     }
 </script>
 

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Students;
 use App\Models\Course;
 use App\Models\Fee;
+use App\Models\Exam;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -130,6 +131,138 @@ class DashboardController extends Controller
         // ===== ADDITIONAL STATS =====
         $totalTransactions = Fee::count();
         $averageFee = Fee::avg('amount') ?? 0;
+
+        // ===== EXAM STATISTICS =====
+        $upcomingExams = 0;
+        $completedExams = 0;
+        $ongoingExams = 0;
+        $nextExamDate = 'N/A';
+        $recentExams = collect([]);
+
+        // Check if Exam model exists and table has data
+        if (class_exists('App\Models\Exam')) {
+            try {
+                // Check if exams table exists
+                if (Schema::hasTable('exams')) {
+                    // Upcoming exams
+                    if (Schema::hasColumn('exams', 'exam_date') && Schema::hasColumn('exams', 'status')) {
+                        $upcomingExams = Exam::where('exam_date', '>', Carbon::now())
+                                            ->where('status', 'upcoming')
+                                            ->count() ?? 0;
+                        
+                        $completedExams = Exam::where('exam_date', '<', Carbon::now())
+                                             ->where('status', 'completed')
+                                             ->count() ?? 0;
+                        
+                        $ongoingExams = Exam::where('status', 'ongoing')->count() ?? 0;
+                        
+                        // Get next exam date
+                        $nextExam = Exam::where('exam_date', '>', Carbon::now())
+                                       ->orderBy('exam_date', 'asc')
+                                       ->first();
+                        $nextExamDate = $nextExam ? Carbon::parse($nextExam->exam_date)->format('M d, Y') : 'N/A';
+                        
+                        // Get recent exams for display
+                        $recentExams = Exam::orderBy('exam_date', 'desc')
+                                          ->limit(3)
+                                          ->get();
+                    }
+                }
+            } catch (\Exception $e) {
+                // If exam table doesn't exist or other errors, use default values
+                $upcomingExams = 0;
+                $completedExams = 0;
+                $ongoingExams = 0;
+                $nextExamDate = 'N/A';
+                $recentExams = collect([]);
+            }
+        }
+
+        // ===== REPORT STATISTICS =====
+        $reportStats = [
+            'student_reports' => Students::count(),
+            'fee_reports' => Fee::count(),
+            'exam_reports' => Exam::count() ?? 0,
+            'performance_reports' => 0,
+            'attendance_reports' => 0
+        ];
+
+        // ===== CHART DATA (Prepared for JavaScript) =====
+        // Daily enrollment data (last 7 days)
+        $dailyEnrollment = [];
+        $dailyLabels = [];
+        $dailyTotal = [];
+        
+        for ($i = 6; $i >= 0; $i--) {
+            $date = Carbon::now()->subDays($i);
+            $dailyLabels[] = $date->format('D');
+            $dailyEnrollment[] = Students::whereDate('created_at', $date)->count() ?? 0;
+        }
+
+        // Calculate running total for daily
+        $runningTotal = 0;
+        foreach ($dailyEnrollment as $count) {
+            $runningTotal += $count;
+            $dailyTotal[] = $runningTotal;
+        }
+
+        // Yearly enrollment data (last 7 years)
+        $yearlyEnrollment = [];
+        $yearlyLabels = [];
+        $yearlyTotal = [];
+        
+        for ($i = 6; $i >= 0; $i--) {
+            $year = Carbon::now()->subYears($i)->year;
+            $yearlyLabels[] = $year;
+            $yearlyEnrollment[] = Students::whereYear('created_at', $year)->count() ?? 0;
+        }
+
+        // Calculate running total for yearly
+        $runningTotal = 0;
+        foreach ($yearlyEnrollment as $count) {
+            $runningTotal += $count;
+            $yearlyTotal[] = $runningTotal;
+        }
+
+        // Daily fee collection data (last 7 days)
+        $dailyCollected = [];
+        $dailyPending = [];
+        
+        for ($i = 6; $i >= 0; $i--) {
+            $date = Carbon::now()->subDays($i);
+            
+            if (Schema::hasColumn('fees', 'status')) {
+                $dailyCollected[] = Fee::whereDate('created_at', $date)
+                                      ->where('status', 'paid')
+                                      ->sum('amount') ?? 0;
+                $dailyPending[] = Fee::whereDate('created_at', $date)
+                                    ->where('status', 'pending')
+                                    ->sum('amount') ?? 0;
+            } else {
+                $dailyCollected[] = Fee::whereDate('created_at', $date)->sum('amount') ?? 0;
+                $dailyPending[] = 0;
+            }
+        }
+
+        // Yearly fee collection data (last 7 years)
+        $yearlyCollected = [];
+        $yearlyPending = [];
+        
+        for ($i = 6; $i >= 0; $i--) {
+            $year = Carbon::now()->subYears($i)->year;
+            
+            if (Schema::hasColumn('fees', 'status')) {
+                $yearlyCollected[] = Fee::whereYear('created_at', $year)
+                                       ->where('status', 'paid')
+                                       ->sum('amount') ?? 0;
+                $yearlyPending[] = Fee::whereYear('created_at', $year)
+                                     ->where('status', 'pending')
+                                     ->sum('amount') ?? 0;
+            } else {
+                $yearlyCollected[] = Fee::whereYear('created_at', $year)->sum('amount') ?? 0;
+                $yearlyPending[] = 0;
+            }
+        }
         
         // ===== RETURN VIEW WITH ALL VARIABLES =====
         return view('dashboard', compact(
@@ -179,7 +312,29 @@ class DashboardController extends Controller
             
             // Additional stats
             'totalTransactions',
-            'averageFee'
+            'averageFee',
+            
+            // Exam stats
+            'upcomingExams',
+            'completedExams',
+            'ongoingExams',
+            'nextExamDate',
+            'recentExams',
+            
+            // Report stats
+            'reportStats',
+            
+            // Chart data - MATCH THE VARIABLE NAMES USED IN THE VIEW
+            'dailyLabels',
+            'dailyEnrollment',
+            'dailyTotal',
+            'dailyCollected',
+            'dailyPending',
+            'yearlyLabels',
+            'yearlyEnrollment',
+            'yearlyTotal',
+            'yearlyCollected',
+            'yearlyPending'
         ));
     }
 }
