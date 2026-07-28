@@ -773,11 +773,7 @@
                                 <i class="fas fa-plus-circle"></i> Create Exam
                             </a>
                         </li>
-                        <li>
-                            <a href="{{ route('exams.performance-analysis') }}" class="sidebar-link {{ request()->routeIs('exams.performance-analysis') ? 'active' : '' }}">
-                                <i class="fas fa-chart-line"></i> Performance Analysis
-                            </a>
-                        </li>
+                       
                     </ul>
                 </li>
                 
