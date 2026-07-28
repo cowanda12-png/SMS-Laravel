@@ -380,8 +380,15 @@ class ExamController extends Controller
             ));
         } catch (\Exception $e) {
             Log::error('Performance Analysis Error: ' . $e->getMessage());
-            
-            // Return with empty data if error occurs
+            Log::error($e->getTraceAsString());
+
+            // Return with empty data if error occurs.
+            // IMPORTANT: this branch must pass the SAME set of variables as the
+            // success branch above (studentId, courseId, term, academicYear included),
+            // otherwise the Blade view throws an "Undefined variable" error while
+            // rendering the filter form's selected values — and since that second
+            // exception happens outside this try/catch, it surfaces as an
+            // uncaught 500 that masks the real error logged above.
             $performanceRecords = collect();
             $stats = [
                 'total_students' => 0,
@@ -394,13 +401,24 @@ class ExamController extends Controller
             $terms = ['Term 1', 'Term 2', 'Term 3'];
             $academicYears = ['2024/2025', '2025/2026', '2026/2027'];
 
+            // Preserve whatever filter values were submitted, defaulting to null
+            // so the Blade view's old()/selected-value checks don't blow up.
+            $studentId = $studentId ?? null;
+            $courseId = $courseId ?? null;
+            $term = $term ?? null;
+            $academicYear = $academicYear ?? null;
+
             return view('exams.performance-analysis', compact(
                 'performanceRecords',
                 'stats',
                 'students',
                 'courses',
                 'terms',
-                'academicYears'
+                'academicYears',
+                'studentId',
+                'courseId',
+                'term',
+                'academicYear'
             ))->with('error', 'Unable to load performance data: ' . $e->getMessage());
         }
     }
